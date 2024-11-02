@@ -85,8 +85,9 @@ class LearnDmp:
                 'pitch': np.asarray(weights[4, :]).tolist(),
                 'yaw': np.asarray(weights[5, :]).tolist()}
         file = join(self.weights_file_path, file_name)
+        rospy.logerr("%s",file)
         try:
-            with open(file, "a+") as f:
+            with open("example.yaml", "a+") as f:
                 yaml.dump(data, f)
             self.result = "success"
         except:

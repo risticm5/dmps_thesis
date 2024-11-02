@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import numpy as np 
 import rospy
 from geometry_msgs.msg import PoseStamped
@@ -11,6 +11,7 @@ if __name__ == "__main__":
 
     # Compose request message
     req.dmp_name = "dmp/weights/example.yaml"
+    req.dmp_name = "example.yaml"
     req.tau = 1.0
     req.dt = 0.01
     req.goal_pose = PoseStamped()
