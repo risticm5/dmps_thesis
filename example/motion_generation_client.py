@@ -12,7 +12,7 @@ if __name__ == "__main__":
     # Compose request message
     req.dmp_name = "dmp/weights/example.yaml"
     req.dmp_name = "example.yaml"
-    req.tau = 1.0
+    req.tau = 2.0
     req.dt = 0.01
     req.goal_pose = PoseStamped()
     req.goal_pose.header.frame_id = "base_link"
