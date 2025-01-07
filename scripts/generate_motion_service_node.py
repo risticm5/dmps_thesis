@@ -48,6 +48,7 @@ class GenerateMotionClass:
         cartesian_trajectory.header.frame_id = "base_link"
         path = Path()
         path.header.frame_id = "base_link"
+        rospy.loginfo(f"The length of the trajectory is {pos.shape[0]}")
         for i in range(pos.shape[0]):
             x, y, z, w = tf.transformations.quaternion_from_euler(pos[i, 3], pos[i, 4], pos[i, 5])
             pose = Pose()

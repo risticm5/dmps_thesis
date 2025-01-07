@@ -6,38 +6,32 @@ from ros_dmp.srv import *
 import tf
 
 if __name__ == "__main__":
+    ''' 
+    Generate the fake reference trajectory and call the learn_dmp service
+    '''
 
     rospy.init_node('learn_dmp_service_test_client')
     req = LearnDMPRequest()
 
-    # Generating a hypothetical trajectory
-    x = np.linspace(0, 3)
-    y = np.linspace(0, 3)
-    z = np.zeros(10)
-    z = np.hstack((z, np.ones(30)))
-    z = np.hstack((z, np.ones(10)*0.5))
-    o_x = np.linspace(0, 1)
-    o_y = np.linspace(0, 1)
-    o_z = np.linspace(0, 1)
-    o_w = np.linspace(0, 1)
-    
-    # Generating a hypothetical trajectory - Marko
-    x = np.linspace(0, 0.3) #x = np.linspace(0, 0.8)
-    y = np.zeros(50)
-    z = np.linspace(0,0.3)  #z = 0.3*np.sin(20*x)
-    #otientation
-    x1, y1, z1, w1 = tf.transformations.quaternion_from_euler(0.0, 0.0, 3.14/4)
-    o_x = np.linspace(0,x1) #np.zeros(50)
-    o_y = np.linspace(0,y1) #np.zeros(50)
-    o_z = np.linspace(0,z1) #np.zeros(50)
-    o_w = np.linspace(0,w1) #np.ones(50) #for zero angle
+    # Generating a 'fake' reference trajectory
+    x = np.linspace(0, 0.3, 100)
+    y = np.linspace(0, 0.3, 100)
+    #z = np.zeros(20)
+    #z = np.hstack((z, np.ones(60) * 0.2))
+    #z = np.hstack((z, np.ones(20) * 0.1))
+    z = np.linspace(0, 0.2, 100)
+    x1, y1, z1, w1 = tf.transformations.quaternion_from_euler(0.0, 0.0, 3.14)
+    o_x = np.linspace(0, x1, 100) #np.zeros(50)
+    o_y = np.linspace(0, y1, 100) #np.zeros(50)
+    o_z = np.linspace(0, z1, 100) #np.zeros(50)
+    o_w = np.linspace(0, w1, 100) #np.ones(50) #for zero angle
 
     # Compose service request
     req.header.frame_id = 'base_link'
     req.output_weight_file_name = 'example.yaml'
-    req.dmp_name = 'marko_traj'
+    req.dmp_name = 'reference_trajectory'
     req.header.stamp = rospy.Time.now()
-    req.n_bfs = 100 #500
+    req.n_bfs = 500 #500
     req.n_dmps = 6
     #default dt=0.01
 
