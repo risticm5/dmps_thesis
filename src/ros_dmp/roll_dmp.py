@@ -36,6 +36,7 @@ class RollDmp():
 
         file_name: Path of the weight file
         '''
+        
         with open(file_name) as f:
             loadeddict = yaml.safe_load(f)
         x = loadeddict.get('x')

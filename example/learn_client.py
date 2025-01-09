@@ -13,29 +13,34 @@ if __name__ == "__main__":
     rospy.init_node('learn_dmp_service_test_client')
     req = LearnDMPRequest()
 
-    # Generating a 'fake' reference trajectory
-    x = np.linspace(0, 0.3, 100)
-    y = np.linspace(0, 0.3, 100)
-    #z = np.zeros(20)
-    #z = np.hstack((z, np.ones(60) * 0.2))
-    #z = np.hstack((z, np.ones(20) * 0.1))
-    z = np.linspace(0, 0.2, 100)
-    x1, y1, z1, w1 = tf.transformations.quaternion_from_euler(0.0, 0.0, 3.14)
-    o_x = np.linspace(0, x1, 100) #np.zeros(50)
-    o_y = np.linspace(0, y1, 100) #np.zeros(50)
-    o_z = np.linspace(0, z1, 100) #np.zeros(50)
-    o_w = np.linspace(0, w1, 100) #np.ones(50) #for zero angle
-
     # Compose service request
-    req.header.frame_id = 'base_link'
+    req.header.frame_id = 'dmp_ref'
     req.output_weight_file_name = 'example.yaml'
     req.dmp_name = 'reference_trajectory'
     req.header.stamp = rospy.Time.now()
     req.n_bfs = 500 #500
     req.n_dmps = 6
+
+    # Generating a 'fake' reference trajectory
+    x = np.linspace(0, 0.2, 100)
+    y = np.linspace(0, 0.2, 100)
+    #z = np.zeros(20)
+    #z = np.hstack((z, np.ones(60) * 0.2))
+    #z = np.hstack((z, np.ones(20) * 0.1))
+    z = np.linspace(0, 0.1, 100)
+    x_start, y_start, z_start, w_start = tf.transformations.quaternion_from_euler(1.57, 0.0, 0.0) # rx, ry, rz
+    x_end, y_end, z_end, w_end = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
+    o_x = np.linspace(x_start, x_end, 100) #np.zeros(50)
+    o_y = np.linspace(y_start, y_end, 100) #np.zeros(50)
+    o_z = np.linspace(z_start, z_end, 100) #np.zeros(50)
+    o_w = np.linspace(w_start, w_end, 100) #np.ones(50) #for zero angle
+
+    
     #default dt=0.01
 
     for i in range(x.shape[0]):
+
+        # All these values of the pose are specified with respect to dmp_ref frame
         pose = Pose()
         pose.position.x = x[i]
         pose.position.y = y[i]

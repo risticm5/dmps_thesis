@@ -21,6 +21,8 @@ class GenerateMotionClass:
         self.trajectory_pub = rospy.Publisher('~cartesian_trajectory', CartesianTrajectory, queue_size=1)
         self.path_pub = rospy.Publisher('~cartesian_path', Path, queue_size=1)
 
+        self.verbose = True
+
     def generate_motion(self, req):
         ''' Generates trajectory upon request
 
@@ -32,29 +34,31 @@ class GenerateMotionClass:
                                                                     req.initial_pose.pose.orientation.z, req.initial_pose.pose.orientation.w])
         initial_pose = np.array([req.initial_pose.pose.position.x, req.initial_pose.pose.position.y, req.initial_pose.pose.position.z,
                             rpy[0], rpy[1], rpy[2]])
+        if self.verbose: rospy.loginfo(f"The initial pose is {initial_pose}")
         
         # Goal Pose
         rpy = tf.transformations.euler_from_quaternion([req.goal_pose.pose.orientation.x, req.goal_pose.pose.orientation.y,
                                                                     req.goal_pose.pose.orientation.z, req.goal_pose.pose.orientation.w])
         goal_pose = np.array([req.goal_pose.pose.position.x, req.goal_pose.pose.position.y, req.goal_pose.pose.position.z,
                             rpy[0], rpy[1], rpy[2]])
+        
+        if self.verbose: rospy.loginfo(f"The goal pose is {goal_pose}")
+        if self.verbose: rospy.loginfo("Generating motion for dmp " + req.dmp_name)
 
-        rospy.loginfo("Generating motion for dmp " + req.dmp_name)
         dmp = RollDmp(req.dmp_name, req.dt)
         pos, vel, acc = dmp.roll(goal_pose, initial_pose, req.tau)
 
         # Publish cartesian trajectory
         cartesian_trajectory = CartesianTrajectory()
-        cartesian_trajectory.header.frame_id = "base_link"
+        cartesian_trajectory.header.frame_id = "dmp_ref"
         path = Path()
-        path.header.frame_id = "base_link"
-        rospy.loginfo(f"The length of the trajectory is {pos.shape[0]}")
+        path.header.frame_id = "dmp_ref"
         for i in range(pos.shape[0]):
-            x, y, z, w = tf.transformations.quaternion_from_euler(pos[i, 3], pos[i, 4], pos[i, 5])
             pose = Pose()
             pose.position.x = pos[i, 0]
             pose.position.y = pos[i, 1]
             pose.position.z = pos[i, 2]
+            x, y, z, w = tf.transformations.quaternion_from_euler(pos[i, 3], pos[i, 4], pos[i, 5])
             pose.orientation.x = x
             pose.orientation.y = y
             pose.orientation.z = z
@@ -64,6 +68,14 @@ class GenerateMotionClass:
             cartesian_state.pose = pose
             pose_stamped = PoseStamped()
             pose_stamped.pose = pose
+
+            cartesian_state.pose.position.x = pos[i, 0]
+            cartesian_state.pose.position.y = pos[i, 1]
+            cartesian_state.pose.position.z = pos[i, 2]
+            cartesian_state.pose.orientation.x = x
+            cartesian_state.pose.orientation.y = y
+            cartesian_state.pose.orientation.z = z
+            cartesian_state.pose.orientation.w = w
 
             cartesian_state.vel.linear.x = vel[i, 0]
             cartesian_state.vel.linear.y = vel[i, 1]
@@ -85,7 +97,7 @@ class GenerateMotionClass:
         self.trajectory_pub.publish(cartesian_trajectory)
         self.path_pub.publish(path)
         response = GenerateMotionResponse()
-        rospy.loginfo("Motion generated and published on respective toopics")
+        rospy.loginfo("Motion generated and published on respective topics")
         response.result = "success"
         response.cart_traj = cartesian_trajectory
         return response

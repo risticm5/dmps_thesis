@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <launch>
  <!-- Publish base_link transfrom to support visualization of the trajectories -->
- <node pkg="tf" type="static_transform_publisher" name="base_link_transform" args="0.0 0.0 0.0 0.0 0.0 0.0 odom base_link 50"/>
+ <!-- The angles are in zyx format -->
+ <!-- The frame 'dmp_ref' is rotated as the 'world' for the ur5e robot -->
+ <node pkg="tf" type="static_transform_publisher" name="dmp_ref_transform" args="0.0 0.0 0.0 0.0 0.0 0.0 dmp_ref odom 50"/>
  <include file="$(find ros_dmp)/launch/dmp.launch"/>
 </launch>

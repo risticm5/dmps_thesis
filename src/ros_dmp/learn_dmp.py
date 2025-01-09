@@ -50,14 +50,16 @@ class LearnDmp:
                                                             req.poses[i].orientation.w])
             trajectory[:, i] = [req.poses[i].position.x, req.poses[i].position.y,
                                 req.poses[i].position.z, rpy[0], rpy[1], rpy[2]]
-        self.learn_dmp(trajectory, req.output_weight_file_name, req.n_dmps, req.n_bfs)
+        self.learn_dmp(trajectory, req.output_weight_file_name, req.n_dmps, req.n_bfs, req.header.frame_id)
         rospy.loginfo("Successfully learned the motion primitive")
+        rospy.loginfo(f"The path of the file containing the weights is {join(self.weights_file_path, req.output_weight_file_name)}")
+
         # Return response
         response = LearnDMPResponse()
         response.result = self.result
         return response
 
-    def learn_dmp(self, trajectory, file_name, n_dmps=6, n_bfs=50):
+    def learn_dmp(self, trajectory, file_name, n_dmps=6, n_bfs=50, header="dmp_ref"):
         """This function learns dmp weights and stores them in desired file
 
         trajectory: Matrix containing trajectory
@@ -98,22 +100,32 @@ class LearnDmp:
 
         # Publish Imitated Path
         imitated_path = Path()
-        imitated_path.header.frame_id = "/base_link"
+        imitated_path.header.frame_id = header
         for itr in range(pos.shape[0]):
             pose_stamped = PoseStamped()
             pose_stamped.pose.position.x = pos[itr, 0]
             pose_stamped.pose.position.y = pos[itr, 1]
             pose_stamped.pose.position.z = pos[itr, 2]
+            x1, y1, z1, w1 = tf.transformations.quaternion_from_euler(pos[itr, 3], pos[itr, 4], pos[itr, 5])
+            pose_stamped.pose.orientation.x = x1
+            pose_stamped.pose.orientation.y = y1
+            pose_stamped.pose.orientation.z = z1
+            pose_stamped.pose.orientation.w = w1
             imitated_path.poses.append(pose_stamped)
         self.imitated_path_pub.publish(imitated_path)
 
         # Publish Demonstrated Path
         demonstrated_path = Path()
-        demonstrated_path.header.frame_id = "/base_link"
+        demonstrated_path.header.frame_id = "dmp_ref"
         for itr in range(demonstrated_trajectory.shape[1]):
             pose_stamped = PoseStamped()
             pose_stamped.pose.position.x = demonstrated_trajectory[0, itr]
             pose_stamped.pose.position.y = demonstrated_trajectory[1, itr]
             pose_stamped.pose.position.z = demonstrated_trajectory[2, itr]
+            x1, y1, z1, w1 = tf.transformations.quaternion_from_euler(demonstrated_trajectory[3, itr], demonstrated_trajectory[4, itr], demonstrated_trajectory[5, itr])
+            pose_stamped.pose.orientation.x = x1
+            pose_stamped.pose.orientation.y = y1
+            pose_stamped.pose.orientation.z = z1
+            pose_stamped.pose.orientation.w = w1
             demonstrated_path.poses.append(pose_stamped)
         self.demonstrated_path_pub.publish(demonstrated_path)

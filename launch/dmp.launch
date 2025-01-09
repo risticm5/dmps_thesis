@@ -1,14 +1,19 @@
 <?xml version="1.0"?>
 <launch>
+<!-- the node to be launched is contained in learn_dmp.py from src/ros_dmp -->
   <node pkg="ros_dmp" type="learn_dmp_service_node"
           name="learn_dmp_service_node" output="screen">
-    <!-- the node cycle rate (in hz) -->
+    
     <param name="loop_rate" type="double" value="30.0"/>
     <param name="weights_file_path" type="string" value="/home/christian/projects/merlin_ws/src/dmps_thesis/"/>
- </node>
- <node pkg="ros_dmp" type="generate_motion_service_node.py"
+  </node>
+  <!-- the node to be launched is contained in generate_motion_service_node.py in scripts -->
+  <node pkg="ros_dmp" type="generate_motion_service_node.py"
           name="generate_motion_service_node" output="screen">
     <!-- the node cycle rate (in hz) -->
     <param name="loop_rate" type="double" value="30.0"/>
- </node>
+  </node>
+
+  <!-- Launch RViz with the saved configuration -->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d /home/christian/projects/merlin_ws/src/dmps_thesis/config/my_config.rviz" output="screen"/>
 </launch>
