@@ -13,8 +13,9 @@ if __name__ == "__main__":
     # Compose request message
     req.dmp_name = "/home/christian/projects/merlin_ws/src/dmps_thesis/example.yaml"
     #req.dmp_name = "example.yaml"
-    req.tau = 0.1
-    req.dt = 0.01
+    #req.tau = 0.1
+    req.tau = rospy.get_param("/tau")
+    req.dt = rospy.get_param("/dt")
     
     # Define the initial pose
     req.initial_pose = PoseStamped()
@@ -22,7 +23,7 @@ if __name__ == "__main__":
     req.initial_pose.pose.position.x = 0.0 #0.8
     req.initial_pose.pose.position.y = 0.0
     req.initial_pose.pose.position.z = 0.0  #0.3*np.sin(20*0.8)
-    x1, y1, z1, w1 = tf.transformations.quaternion_from_euler(1.57, 0.0, 0.0) # rx, ry, rz
+    x1, y1, z1, w1 = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
     req.initial_pose.pose.orientation.x = x1 
     req.initial_pose.pose.orientation.y = y1 
     req.initial_pose.pose.orientation.z = z1 

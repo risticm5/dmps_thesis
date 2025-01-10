@@ -10,12 +10,13 @@ from os.path import join
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 from ros_dmp.srv import *
+import os
 
 
 class LearnDmp:
     def __init__(self):
-        '''Ros interface for learning DMP
-
+        '''
+        Ros interface for learning DMPs.
         Initializes the learn DMP service
         '''
         rospy.init_node("learn_dynamic_motion_primitive_service")
@@ -27,7 +28,7 @@ class LearnDmp:
         self.imitated_path_pub = rospy.Publisher("~imitated_path", Path, queue_size=1)
         self.demonstrated_path_pub = rospy.Publisher("~demonstrated_path", Path, queue_size=1)
 
-        # Parameters
+        # Parameters (read from launch file)
         self.weights_file_path = rospy.get_param('~weights_file_path', '../../data/weights/')
         loop_rate = rospy.get_param('~loop_rate')
 
@@ -36,13 +37,14 @@ class LearnDmp:
         rospy.spin()
 
     def learn_dmp_handler(self, req):
-        '''Handler for client request
-
-        req: service request msg
+        '''
+        Handler for client request.
+        req: service request msg.
         '''
         rospy.loginfo("Recieved request to learn a motion primitive")
-        trajectory = np.zeros((6, len(req.poses)))
         rospy.loginfo("Learning motion primitive " + req.dmp_name)
+        trajectory = np.zeros((6, len(req.poses)))
+        
         for i in range(len(req.poses)):
             rpy = tf.transformations.euler_from_quaternion([req.poses[i].orientation.x,
                                                             req.poses[i].orientation.y,
@@ -52,7 +54,6 @@ class LearnDmp:
                                 req.poses[i].position.z, rpy[0], rpy[1], rpy[2]]
         self.learn_dmp(trajectory, req.output_weight_file_name, req.n_dmps, req.n_bfs, req.header.frame_id)
         rospy.loginfo("Successfully learned the motion primitive")
-        rospy.loginfo(f"The path of the file containing the weights is {join(self.weights_file_path, req.output_weight_file_name)}")
 
         # Return response
         response = LearnDMPResponse()
@@ -60,17 +61,18 @@ class LearnDmp:
         return response
 
     def learn_dmp(self, trajectory, file_name, n_dmps=6, n_bfs=50, header="dmp_ref"):
-        """This function learns dmp weights and stores them in desired file
+        """
+        This function learns dmp weights and stores them in a desired file.
 
         trajectory: Matrix containing trajectory
         file_name: Name of file in which weights will be stored
-        n_dmps: Number of dimmensions (6 default for cartesian trajectory)
-        n_bfs: Number of basis functions to be used
+        n_dmps: Number of dimensions (6 default for cartesian trajectory)
+        n_bfs: Number of basis functions to be used (50 as default)
         """
 
         demonstrated_trajectory = trajectory.copy()
-        demonstrated_goal_pose = demonstrated_trajectory[:, -1]
-        demonstrated_initial_pose = demonstrated_trajectory[:, 0]
+        demonstrated_goal_pose = demonstrated_trajectory[:, -1] # Final element
+        demonstrated_initial_pose = demonstrated_trajectory[:, 0] # First element
 
         # Removing bias from the data. (Start position is zero now)
         trajectory -= trajectory[:, 0][:, None]
@@ -87,6 +89,7 @@ class LearnDmp:
                 'pitch': np.asarray(weights[4, :]).tolist(),
                 'yaw': np.asarray(weights[5, :]).tolist()}
         file = join(self.weights_file_path, file_name)
+        rospy.loginfo("Saving weights to file: " + file)
         try:
             with open(file, "a+") as f:
                 yaml.dump(data, f)
