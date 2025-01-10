@@ -28,6 +28,7 @@ class RollDmp():
         tau: Time scaling factor 
         '''
 
+        # 'rollout' gives you the complete trajectory vectors
         self.pos, self.vel, self.acc = self.dmp.rollout(goal=goal, y0=initial_pos, tau=tau)
         return self.pos, self.vel, self.acc
 

@@ -46,6 +46,8 @@ class GenerateMotionClass:
         if self.verbose: rospy.loginfo("Generating motion for dmp " + req.dmp_name)
 
         dmp = RollDmp(req.dmp_name, req.dt)
+
+        # 'roll' is based on 'rollout' and it gives the complete trajectories
         pos, vel, acc = dmp.roll(goal_pose, initial_pose, req.tau)
 
         # Publish cartesian trajectory
@@ -94,6 +96,7 @@ class GenerateMotionClass:
             cartesian_trajectory.cartesian_state.append(cartesian_state)
             path.poses.append(pose_stamped)
         
+        # Publish the generated trajectory (all at once => not real-time)
         self.trajectory_pub.publish(cartesian_trajectory)
         self.path_pub.publish(path)
         response = GenerateMotionResponse()

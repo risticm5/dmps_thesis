@@ -162,8 +162,10 @@ class DMPs(object):
         ddy_track = np.zeros((timesteps, self.n_dmps))
         for t in range(timesteps):
 
-            # run and record timestep
+            # run and record timestep (you are 'appending' values)
             y_track[t], dy_track[t], ddy_track[t] = self.step(**kwargs)
+
+            # At this point you can even think of publishing the current value...
 
         return y_track, dy_track, ddy_track
 
@@ -190,6 +192,9 @@ class DMPs(object):
         psi = self.gen_psi(x)
 
         for d in range(self.n_dmps):
+
+            # Here some modifications could be done to
+            # Account for coupling terms based on the distance...
 
             # generate the forcing term
             f = (self.gen_front_term(x, d) *
