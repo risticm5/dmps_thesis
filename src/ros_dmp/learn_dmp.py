@@ -132,3 +132,7 @@ class LearnDmp:
             pose_stamped.pose.orientation.w = w1
             demonstrated_path.poses.append(pose_stamped)
         self.demonstrated_path_pub.publish(demonstrated_path)
+
+if __name__ == "__main__":
+
+    learn_dmp_object = ros_dmp.LearnDmp()

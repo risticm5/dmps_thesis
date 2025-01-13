@@ -16,6 +16,7 @@ if __name__ == "__main__":
     #req.tau = 0.1
     req.tau = rospy.get_param("/tau")
     req.dt = rospy.get_param("/dt")
+    rospy.loginfo(f"Using tau: {req.tau} and dt: {req.dt}")
     
     # Define the initial pose
     req.initial_pose = PoseStamped()

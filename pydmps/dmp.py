@@ -168,6 +168,36 @@ class DMPs(object):
             # At this point you can even think of publishing the current value...
 
         return y_track, dy_track, ddy_track
+    
+    def roll_generator(self, goal=None, y0=None, tau=1.0, **kwargs):
+        """
+        Generator for real-time rollout of the DMP.
+
+        Args:
+            goal (np.array): Goal position of the DMP.
+            y0 (np.array): Initial position of the DMP.
+            tau (float): Temporal scaling factor.
+
+        Yields:
+            tuple: (position, velocity, acceleration) at each time step.
+        """
+        if goal is not None:
+            self.goal = goal
+
+        if y0 is not None:
+            self.y0 = y0
+
+        self.reset_state()  # Reset the system to initial conditions
+
+        timesteps = int(self.timesteps / tau)
+        
+
+        for _ in range(timesteps):
+            # Compute the next step of the DMP
+            y, dy, ddy = self.step(tau=tau, **kwargs)
+            yield y, dy, ddy
+
+
 
     def reset_state(self):
         """Reset the system state"""

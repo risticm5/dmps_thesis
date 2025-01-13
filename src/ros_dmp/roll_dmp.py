@@ -25,13 +25,28 @@ class RollDmp():
 
         goal: Numpy array, goal vector
         initial_pos: Numpy array, initial pose vector
-        tau: Time scaling factor 
+        tau: Time scaling factor
         '''
 
         # 'rollout' gives you the complete trajectory vectors
         self.pos, self.vel, self.acc = self.dmp.rollout(goal=goal, y0=initial_pos, tau=tau)
         return self.pos, self.vel, self.acc
+    
+    def roll_generator(self, goal, initial_pos, tau):
+        """
+        Generates trajectory dynamically for given parameters.
 
+        Args:
+            goal (np.array): Goal position of the DMP.
+            initial_pos (np.array): Initial position of the DMP.
+            tau (float): Temporal scaling factor.
+
+        Yields:
+            tuple: (position, velocity, acceleration) at each time step.
+        """
+        yield from self.dmp.roll_generator(goal=goal, y0=initial_pos, tau=tau)
+
+    
     def load_weights(self, file_name):
         '''Loads DMP weights from given weight file
 
