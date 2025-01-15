@@ -4,5 +4,5 @@
  <!-- The angles are in zyx format -->
  <!-- The frame 'dmp_ref' is rotated as the 'world' for the ur5e robot -->
  <node pkg="tf" type="static_transform_publisher" name="dmp_ref_transform" args="0.0 0.0 0.0 0.0 0.0 0.0 dmp_ref odom 50"/>
- <include file="$(find ros_dmp)/launch/dmp_static.launch"/>
+ <include file="$(find ros_dmp)/launch/dmp_dynamic.launch"/>
 </launch>

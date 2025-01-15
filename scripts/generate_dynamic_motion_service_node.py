@@ -87,10 +87,19 @@ class GenerateMotionClass:
             cartesian_state.acc.linear.x, cartesian_state.acc.linear.y, cartesian_state.acc.linear.z = acc[:3]
             cartesian_state.acc.angular.x, cartesian_state.acc.angular.y, cartesian_state.acc.angular.z = acc[3:]
 
-            cartesian_trajectory.cartesian_state.append(cartesian_state)
+            # cartesian_trajectory.cartesian_state.append(cartesian_state)
+            # Create a new CartesianTrajectory message with only the current state
+            single_state_trajectory = CartesianTrajectory()
+            single_state_trajectory.header.frame_id = "dmp_ref"
+            single_state_trajectory.header.stamp = rospy.Time.now()  # Add a timestamp
+            single_state_trajectory.cartesian_state = [cartesian_state]  # Add only the current state
+
+            # Publish the current trajectory point
+            self.trajectory_pub.publish(single_state_trajectory)
+
 
             # Publish trajectory point
-            self.trajectory_pub.publish(cartesian_trajectory)
+            #self.trajectory_pub.publish(cartesian_trajectory)
 
             # Publish path
             pose_stamped = PoseStamped()
