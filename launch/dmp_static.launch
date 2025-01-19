@@ -17,5 +17,5 @@
   </node>
 
   <!-- Launch RViz with the saved configuration (only for visualization) -->
-  <!--  <node pkg="rviz" type="rviz" name="rviz" args="-d /home/christian/projects/merlin_ws/src/dmps_thesis/config/my_config.rviz" output="screen"/> -->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d /home/christian/projects/merlin_ws/src/dmps_thesis/config/my_config.rviz" output="screen"/>
 </launch>

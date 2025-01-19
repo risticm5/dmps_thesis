@@ -23,6 +23,8 @@ import numpy as np
 
 from pydmps.cs import CanonicalSystem
 
+import time
+
 
 class DMPs(object):
     """Implementation of Dynamic Motor Primitives,
@@ -194,7 +196,16 @@ class DMPs(object):
 
         for _ in range(timesteps):
             # Compute the next step of the DMP
+
+            # Start timing
+            start_time = time.time()
             y, dy, ddy = self.step(tau=tau, **kwargs)
+            # End timing
+            end_time = time.time()
+
+            # Calculate and print the time taken for this step
+            computation_time = end_time - start_time
+            print(f"Computation time for this step: {computation_time:.6f} seconds")
             yield y, dy, ddy
 
 

@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # Generating a 'fake' reference trajectory
     x_start, y_start, z_start, w_start = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
     x_end, y_end, z_end, w_end = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
-    x = np.linspace(0, 0.2, 100)
+    x = np.linspace(0, -0.2, 100)
     y = np.linspace(0, 0.2, 100)
     z = np.linspace(0, 0.1, 100)
     o_x = np.linspace(x_start, x_end, 100)
