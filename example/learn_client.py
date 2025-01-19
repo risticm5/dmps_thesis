@@ -23,12 +23,27 @@ if __name__ == "__main__":
     req.n_bfs = rospy.get_param("/n_radial_basis")
     req.n_dmps = rospy.get_param("/n_dmps")
 
-    # Generating a 'fake' reference trajectory
+    # Case 1: line in space
+    '''
     x_start, y_start, z_start, w_start = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
     x_end, y_end, z_end, w_end = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
     x = np.linspace(0, -0.2, 100)
     y = np.linspace(0, 0.2, 100)
     z = np.linspace(0, 0.1, 100)
+    o_x = np.linspace(x_start, x_end, 100)
+    o_y = np.linspace(y_start, y_end, 100)
+    o_z = np.linspace(z_start, z_end, 100)
+    o_w = np.linspace(w_start, w_end, 100)
+    '''
+
+    # Case 2: square wave
+    x_start, y_start, z_start, w_start = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
+    x_end, y_end, z_end, w_end = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
+    x = np.linspace(0, 0.2, 100)
+    y = np.linspace(0, 0.2, 100)
+    z = np.zeros(20)
+    z = np.hstack((z, np.ones(60) * 0.2))
+    z = np.hstack((z, np.ones(20) * 0.1))
     o_x = np.linspace(x_start, x_end, 100)
     o_y = np.linspace(y_start, y_end, 100)
     o_z = np.linspace(z_start, z_end, 100)
