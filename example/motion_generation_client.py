@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # Define the goal pose
     req.goal_pose = PoseStamped()
     req.goal_pose.header.frame_id = "dmp_ref"
-    req.goal_pose.pose.position.x = 0.2 #0.8
+    req.goal_pose.pose.position.x = -0.2 #0.8
     req.goal_pose.pose.position.y = 0.2
     req.goal_pose.pose.position.z = 0.1  #0.3*np.sin(20*0.8)
     x2, y2, z2, w2 = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
