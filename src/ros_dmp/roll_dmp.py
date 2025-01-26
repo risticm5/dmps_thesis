@@ -2,6 +2,7 @@ import numpy as np
 import yaml
 import os.path
 import pydmps
+import rospy
 
 class RollDmp():
 
@@ -15,6 +16,7 @@ class RollDmp():
         self.vel = None
         self.acc = None
         weights = self.load_weights(file_name)
+        print(f"Loaded weights: {weights}")
         n_dmps = weights.shape[0]
         n_bfs = weights.shape[1]
         self.dmp = pydmps.dmp_discrete.DMPs_discrete(n_dmps=n_dmps, n_bfs=n_bfs,
@@ -56,6 +58,7 @@ class RollDmp():
         with open(file_name) as f:
             loadeddict = yaml.safe_load(f)
         x = loadeddict.get('x')
+        rospy.loginfo(f"The loaded weights for x are: {x}")
         y = loadeddict.get('y')
         z = loadeddict.get('z')
         roll = loadeddict.get('roll')

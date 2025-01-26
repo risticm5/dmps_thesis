@@ -4,12 +4,48 @@ import rospy
 from geometry_msgs.msg import Pose
 from ros_dmp.srv import *
 import tf
+import csv
+import sys 
+import os
+import math
+
+def normalize_quaternion(x, y, z, w):
+    """Normalize the quaternion to ensure its magnitude is 1."""
+    magnitude = math.sqrt(x**2 + y**2 + z**2 + w**2)
+    return x / magnitude, y / magnitude, z / magnitude, w / magnitude
+
+def ensure_smaller_axis_angle(x, y, z, w):
+    """
+    Ensure the quaternion represents the smaller axis-angle rotation.
+    If the angle is greater than π, invert the quaternion.
+    """
+    # Normalize the quaternion
+    x, y, z, w = normalize_quaternion(x, y, z, w)
+    
+    # Calculate the rotation angle
+    theta = 2 * math.acos(w)
+    
+    # If the rotation angle exceeds π, invert the quaternion
+    if theta > math.pi:
+        x, y, z, w = -x, -y, -z, -w
+    
+    return x, y, z, w
 
 if __name__ == "__main__":
     ''' 
-    Generate the fake reference trajectory and call the learn_dmp service.
-    As of now, the reference frame is dmp_ref and it is alligned as the frame 'world' of the ur5e robot.
-    This file is going to be changed a bit: the reference trajectory is going to be read from a file.
+    Generate the reference trajectory from a CSV file and call the learn_dmp service.
+    The reference frame is dmp_ref, aligned with the 'world' frame of the UR5e robot.
+    '''
+
+    ''' 
+    self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        sys.path.append(self.script_dir)
+        self.file_path = os.path.join(self.script_dir, "../reference_trajectory.csv")
+
+        # Open the file and keep it open for the lifetime of the object
+        self.csv_file = open(self.file_path, mode="w", newline="")
+        self.csv_writer = csv.writer(self.csv_file)
+        self.csv_writer.writerow(['Timestamp', 'x', 'y', 'z', 'qx', 'qy', 'qz', 'qw'])
     '''
 
     rospy.init_node('learn_dmp_service_test_client')
@@ -17,56 +53,56 @@ if __name__ == "__main__":
 
     # Compose service request
     req.header.frame_id = 'dmp_ref'
-    req.output_weight_file_name = 'example.yaml'
+    req.output_weight_file_name = 'MyWeights.yaml'
     req.dmp_name = 'reference_trajectory'
     req.header.stamp = rospy.Time.now()
     req.n_bfs = rospy.get_param("/n_radial_basis")
     req.n_dmps = rospy.get_param("/n_dmps")
 
-    # Case 1: line in space
-    x_start, y_start, z_start, w_start = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
-    x_end, y_end, z_end, w_end = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
-    x = np.linspace(0, -0.2, 100)
-    y = np.linspace(0, 0.2, 100)
-    z = np.linspace(0, 0.1, 100)
-    o_x = np.linspace(x_start, x_end, 100)
-    o_y = np.linspace(y_start, y_end, 100)
-    o_z = np.linspace(z_start, z_end, 100)
-    o_w = np.linspace(w_start, w_end, 100)
+    # Read trajectory data from CSV file
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(script_dir)
+    file_path = os.path.join(script_dir, "../reference_trajectory.csv")
     
+    # Initialize the poses
+    poses = []
+    
+    try:
+        with open(file_path, 'r') as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Skip the header row
+            for row in reader:
+                # Assuming CSV columns: position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w
+                pose = Pose()
+                pose.position.x = float(row[1])
+                pose.position.y = float(row[2])
+                pose.position.z = float(row[3])
 
-    # Case 2: square wave
-    '''
-    x_start, y_start, z_start, w_start = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
-    x_end, y_end, z_end, w_end = tf.transformations.quaternion_from_euler(3.14, 0.0, 0.0) # rx, ry, rz
-    x = np.linspace(0, 0.2, 100)
-    y = np.linspace(0, 0.2, 100)
-    z = np.zeros(20)
-    z = np.hstack((z, np.ones(60) * 0.2))
-    z = np.hstack((z, np.ones(20) * 0.1))
-    o_x = np.linspace(x_start, x_end, 100)
-    o_y = np.linspace(y_start, y_end, 100)
-    o_z = np.linspace(z_start, z_end, 100)
-    o_w = np.linspace(w_start, w_end, 100)
-    '''
+                # Extract and process quaternion values
+                qx, qy, qz, qw = float(row[4]), float(row[5]), float(row[6]), float(row[7])
+                qx, qy, qz, qw = ensure_smaller_axis_angle(qx, qy, qz, qw)
 
-    # Generate the full pose
-    for i in range(x.shape[0]):
+                pose.orientation.x = qx
+                pose.orientation.y = qy
+                pose.orientation.z = qz
+                pose.orientation.w = qw
+                poses.append(pose)
+    except FileNotFoundError:
+        rospy.logerr(f"File not found.")
+        exit(1)
+    except ValueError as e:
+        rospy.logerr(f"Error parsing row: {row}. {e}")
+        exit(1)
+    except Exception as e:
+        rospy.logerr(f"Error reading trajectory file: {e}")
+        exit(1)
 
-        # All these values of the pose are specified with respect to dmp_ref frame
-        pose = Pose()
-        pose.position.x = x[i]
-        pose.position.y = y[i]
-        pose.position.z = z[i]
-        pose.orientation.x = o_x[i]
-        pose.orientation.y = o_y[i]
-        pose.orientation.z = o_z[i]
-        pose.orientation.w = o_w[i]
-        req.poses.append(pose)
+    # Add poses to request
+    req.poses = poses
 
     # Call the service
     try:
         service_client = rospy.ServiceProxy('/learn_dynamic_motion_primitive_service', LearnDMP)
         rospy.loginfo(service_client(req))
-    except :
-        rospy.loginfo("Service call failed")
+    except rospy.ServiceException as e:
+        rospy.logerr(f"Service call failed: {e}")
