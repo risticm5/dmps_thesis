@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+
+<!-- the node to be launched is contained in learn_dmp.py from src/ros_dmp -->
+  <node pkg="ros_dmp" type="learn_dmp.py"
+          name="learn_dmp_service_node" output="screen">  
+    <param name="loop_rate" type="double" value="30.0"/>
+    <param name="weights_file_path" type="string" value="/home/ros/projects/merlin_ws/src/dmps_thesis"/>
+    <rosparam command="load" file="$(find merlin_moveit)/config/tutorial_params.yaml" /> 
+  </node>
+
+  <!-- the node to be launched is contained in generate_motion_service_node.py in scripts -->
+  <node pkg="ros_dmp" type="generate_motion_service_node.py"
+          name="generate_motion_service_node" output="screen">
+    <param name="loop_rate" type="double" value="30.0"/>
+    <rosparam command="load" file="$(find merlin_moveit)/config/tutorial_params.yaml" /> 
+  </node>
+
+  <!-- Launch RViz with the saved configuration (only for visualization) -->
+  <!-- node pkg="rviz" type="rviz" name="rviz" args="-d /home/ros/projects/merlin_ws/src/dmps_thesis/config/my_config.rviz" output="screen"/> -->
+</launch>
