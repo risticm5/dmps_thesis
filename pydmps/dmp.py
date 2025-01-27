@@ -23,6 +23,8 @@ import numpy as np
 
 from pydmps.cs import CanonicalSystem
 
+import time
+
 
 class DMPs(object):
     """Implementation of Dynamic Motor Primitives,
@@ -101,18 +103,56 @@ class DMPs(object):
             y_des = y_des.reshape(1, len(y_des))
         self.y0 = y_des[:, 0].copy()
         self.y_des = y_des.copy()
-        self.goal = self.gen_goal(y_des)
+        #self.goal = self.gen_goal(y_des)
+        self.goal = y_des[:, -1].copy()
 
         self.check_offset()
 
         # generate function to interpolate the desired trajectory
         import scipy.interpolate
+        from scipy.spatial.transform import Rotation as R
+
+        '''
         path = np.zeros((self.n_dmps, self.timesteps))
         x = np.linspace(0, self.cs.run_time, y_des.shape[1])
         for d in range(self.n_dmps):
-            path_gen = scipy.interpolate.interp1d(x, y_des[d])
+            path_gen = scipy.interpolate.interp1d(x, y_des[d], kind='cubic', fill_value='extrapolate')
             for t in range(self.timesteps):
                 path[d, t] = path_gen(t * self.dt)
+        y_des = path
+        '''
+
+        # Initialize path array
+        path = np.zeros((self.n_dmps, self.timesteps))
+
+        # Time points
+        x_original = np.linspace(0, self.cs.run_time, y_des.shape[1])
+        t_new = np.linspace(0, self.cs.run_time, self.timesteps)
+
+        # Handle Cartesian data (x, y, z) - first 3 rows
+        for d in range(3):  # Only process Cartesian dimensions directly
+            path_gen = scipy.interpolate.interp1d(x_original, y_des[d], kind='cubic', fill_value="extrapolate")
+            path[d] = path_gen(t_new)
+
+        # Handle rotational data (roll, pitch, yaw) - last 3 rows
+        euler_angles = y_des[3:6].T  # Extract and transpose for easier handling
+        rotations = R.from_euler('xyz', euler_angles, degrees=False)  # Create Rotation objects
+
+        # Convert to quaternions
+        quaternions = rotations.as_quat()  # Shape: (N, 4)
+
+        # Interpolate quaternions (use spherical linear interpolation)
+        interp_func = scipy.interpolate.interp1d(x_original, quaternions, axis=0, kind='linear', fill_value="extrapolate")
+        interpolated_quaternions = interp_func(t_new)
+
+        # Convert interpolated quaternions back to Euler angles
+        interpolated_rotations = R.from_quat(interpolated_quaternions)
+        interpolated_euler_angles = interpolated_rotations.as_euler('xyz', degrees=False).T
+
+        # Assign interpolated rotational data back to the path array
+        path[3:6] = interpolated_euler_angles
+
+        # Update y_des with the interpolated path
         y_des = path
 
         # calculate velocity of y_des
@@ -162,10 +202,51 @@ class DMPs(object):
         ddy_track = np.zeros((timesteps, self.n_dmps))
         for t in range(timesteps):
 
-            # run and record timestep
+            # run and record timestep (you are 'appending' values)
             y_track[t], dy_track[t], ddy_track[t] = self.step(**kwargs)
 
+            # At this point you can even think of publishing the current value...
+
         return y_track, dy_track, ddy_track
+    
+    def roll_generator(self, goal=None, y0=None, tau=1.0, **kwargs):
+        """
+        Generator for real-time rollout of the DMP.
+
+        Args:
+            goal (np.array): Goal position of the DMP.
+            y0 (np.array): Initial position of the DMP.
+            tau (float): Temporal scaling factor.
+
+        Yields:
+            tuple: (position, velocity, acceleration) at each time step.
+        """
+        if goal is not None:
+            self.goal = goal
+
+        if y0 is not None:
+            self.y0 = y0
+
+        self.reset_state()  # Reset the system to initial conditions
+
+        timesteps = int(self.timesteps / tau)
+        
+
+        for _ in range(timesteps):
+            # Compute the next step of the DMP
+
+            # Start timing
+            start_time = time.time()
+            y, dy, ddy = self.step(tau=tau, **kwargs)
+            # End timing
+            end_time = time.time()
+
+            # Calculate and print the time taken for this step
+            computation_time = end_time - start_time
+            print(f"Computation time for this step: {computation_time:.6f} seconds")
+            yield y, dy, ddy
+
+
 
     def reset_state(self):
         """Reset the system state"""
@@ -190,6 +271,9 @@ class DMPs(object):
         psi = self.gen_psi(x)
 
         for d in range(self.n_dmps):
+
+            # Here some modifications could be done to
+            # Account for coupling terms based on the distance...
 
             # generate the forcing term
             f = (self.gen_front_term(x, d) *
