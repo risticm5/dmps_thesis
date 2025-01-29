@@ -24,6 +24,9 @@ from pydmps.dmp import DMPs
 import numpy as np
 import rospy
 from interface_vision_utils.msg import ObjectPose
+import sys
+import os
+import csv
 
 
 class DMPs_discrete(DMPs):
@@ -115,6 +118,58 @@ class DMPs_discrete(DMPs):
                 denom = np.sum(x_track**2 * psi_track[:, b])
                 self.w[d, b] = numer / (k * denom)
         self.w = np.nan_to_num(self.w)
+
+    def gen_coupling_terms(self, y_measured, goal, tau, y_dot, d0):
+        '''
+        Generates the coupling term
+        y_dot float, array: current velocity array (6DOF)
+        y_measured : the state feedback(measured) value (1DOF)
+        goal : the goal position (6DOF)
+        d0 : the initial distances(6DOF)
+        '''
+        #parameters: a_d, delta_d, a_dt, delta_dt, k_t, k_s, alfa_d
+        #fixed parameters :
+        alfa_d = 20.0 #second order filter parameter
+        a_d= 13.0
+        delta_d = -0.35
+        #parameters to be optimized(in this case I took some initial values)
+        k= 0.0 # k = 0: you do not have coupling terms
+        a_dt = 1.0
+        delta_dt = 0.29
+        k_t=k_s=k
+        #For now Cs is only implemneted for 1DOF
+        y_d = y_dot[0]#taking one DOF, out of 6
+        g = goal[0]
+        print(f"The goal is: {g}")
+        print(f"The measured value is: {y_measured[0]}")
+        d = np.abs(g-y_measured[0]) #distance between new goal pose and current pose, just 1DOF
+        #apply second order filter on the measured distance
+        self.dd_de[0] = alfa_d*(alfa_d/4*(d-self.de[0])-self.d_de[0])
+        print(f"The acceleration is: {self.dd_de}")
+        self.d_de[0] += self.dd_de[0] * tau * self.dt
+        print(f"The velocity is: {self.d_de}")
+        self.de[0] += self.d_de[0] * self.dt
+        pom=self.de[0]/d0[0]
+        sigma_d = 1/(1+np.exp(-a_d*(pom+delta_d)))
+        sigma_dt = 1/(1+np.exp(-a_dt*(self.d_de[0]+delta_dt)))
+        Ct = k_t *sigma_d *sigma_dt
+        Cs = -self.ay * tau *y_d * k_s *sigma_d *sigma_dt #for now 1DOF (y_d just first DOF)
+
+        '''
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        file_path = os.path.join(script_dir, "distance.csv")  # File path in the script's directory
+        with open(file_path, mode='w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            
+            # Write the header
+            #csv_writer.writerow(["distance_x (m)"])
+            # Write the data to the file (flatten positions, velocities, accelerations)
+            csv_writer.writerow(d)
+        '''
+
+
+
+        return Ct, Cs, d
         
 
 # ==============================

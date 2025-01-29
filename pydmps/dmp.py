@@ -24,6 +24,8 @@ import rospy
 from pydmps.cs import CanonicalSystem
 from interface_vision_utils.msg import ObjectPose
 import time
+import os
+import csv
 #from threading import Lock
 
 class DMPs(object):
@@ -71,10 +73,20 @@ class DMPs(object):
         self.timesteps = int(self.cs.run_time / self.dt)
 
         # set up the DMP system
+        self.d0 = np.zeros(6)
+        #self.tau_dyn = 1.0
         self.reset_state()
 
-        # Subscriber
-        #rospy.init_node('object_pose_subscriber', anonymous=True)
+        self.reset_state_dynamic()
+
+        # New variables
+        #self.tau_dyn = 1.0
+        self.d_de = np.zeros(6)
+        self.d_not_filtered_plot = []
+        self.d_filtered_plot = []
+        self.goal_vec = []
+        #self.d0 = np.zeros(6)
+        #self.d_de = np.zeros(6)
         
         rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
 
@@ -116,6 +128,11 @@ class DMPs(object):
     def gen_psi(self):
         raise NotImplementedError()
 
+    # y_measured is the object pose taken from camera
+    # y_dot is the current velocity 
+    def gen_coupling_terms(self, y_measured, goal, tau, y_dot, d0):
+        raise NotImplementedError()
+    
     def gen_weights(self, f_target):
         raise NotImplementedError()
 
@@ -256,17 +273,13 @@ class DMPs(object):
         if y0 is not None:
             self.y0 = y0
 
-        self.reset_state()  # Reset the system to initial conditions
-
-        #timesteps = int(self.timesteps / tau)
+        self.reset_state_dynamic()  # Reset the system to initial conditions
+        self.d0 = goal - y0
         
         y = self.y0
         start_time_global = time.time()
-        #elapsed_time_global = 0.0
-        #for _ in range(timesteps):
-        #print(f"The initial position is {self.y0}")
-        #print(f"The goal is {self.goal}")
-        #while y is not self.goal:
+
+        # NOTE: add the condition on quaternions!!!
         while np.linalg.norm(y[:3] - self.goal[:3]) > 0.01:
             print(f"The error is {np.linalg.norm(y[:3] - self.goal[:3])}")
         #while True:
@@ -294,7 +307,7 @@ class DMPs(object):
                 continue
             # Start timing
             start_time_step = time.time()
-            y, dy, ddy = self.step(tau=tau, pose = current_pose, **kwargs)
+            y, dy, ddy = self.step(tau=tau, pose = current_pose, goal = self.goal, **kwargs)
             # End timing
             end_time_step = time.time()
 
@@ -304,6 +317,16 @@ class DMPs(object):
 
             elapsed_time_global = time.time() - start_time_global
             yield y, dy, ddy
+
+        # The while loop is over: saving time!
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        file_path = os.path.join(script_dir, "distance.csv")  # File path in the script's directory
+        with open(file_path, mode='w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(self.d_not_filtered_plot)
+            csv_writer.writerow(self.d_filtered_plot)
+            csv_writer.writerow(self.goal_vec)
+        
 
 
 
@@ -316,7 +339,22 @@ class DMPs(object):
         self.cs.reset_state()
         self.x_old = 1
 
-    def step(self, tau=1.0, error=0.0, external_force=None, pose=None):
+    def reset_state_dynamic(self):
+        """Reset the system state for the dynamic dmps"""
+        self.y = self.y0.copy()
+        self.y_old = self.y.copy()
+        self.dy = np.zeros(self.n_dmps)
+        self.ddy = np.zeros(self.n_dmps)
+        self.cs.reset_state()
+        self.x_old = 1
+
+        # New variables (filtered quantities)
+        self.tau_dyn = 1.0
+        self.de = self.d0
+        self.d_de = np.zeros(6)
+        self.dd_de = np.zeros(6)
+
+    def step(self, tau=1.0, error=0.0, external_force=None, pose=None, goal=None):
         """Run the DMP system for a single timestep.
 
         tau float: scales the timestep
@@ -326,20 +364,20 @@ class DMPs(object):
         #rospy.init_node("object_pose_subscriber")
         error_coupling = 1.0 / (1.0 + error)
 
-        # run canonical system
-        euc_dist = np.sqrt(pose[0]**2 + pose[1]**2 + pose[2]**2)
-        print(f"Euclidean distance: {euc_dist}")
-        if euc_dist < 0.3:
-            x = self.x_old
-        else:
-            x = self.cs.step(tau=tau, error_coupling=error_coupling)
-        print(f"The value of the phase variable x is: {x}")
+        Ct, Cs, d_plot = self.gen_coupling_terms(pose, goal, self.tau_dyn, self.dy, self.d0)
+        # Save the values of distance
+        self.d_not_filtered_plot.append(d_plot)
+        self.d_filtered_plot.append(self.de[0])
+        self.goal_vec.append(goal[0])
+        tau0 = tau
+        self.tau_dyn =tau0 * (1 + Ct) #temporal coupling term
 
-        self.x_old = x
 
-        # generate basis function activation
+        # compute phase and basis functions
+        x = self.cs.step(tau=self.tau_dyn, error_coupling=error_coupling)
         psi = self.gen_psi(x)
 
+        '''
         for d in range(self.n_dmps):
 
             # Here some modifications could be done to
@@ -365,7 +403,36 @@ class DMPs(object):
                 self.y[d] += self.dy[d] * self.dt * error_coupling
             self.y_old[d] = self.y[d]
 
+        '''
+
+        for d in range(self.n_dmps):
+            # generate the forcing term
+            f = (self.gen_front_term(x, d) *
+                 (np.dot(psi, self.w[d])) / np.sum(psi))
+            # DMP acceleration
+            if(d==0):
+                '''
+                print(f"The value of tau_dyn is: {self.tau_dyn}")
+                print(f"The value of Cs is: {Cs}")
+                print(f"The value of f is: {f}")
+                print(f"the value of goal is: {self.goal[d]}")
+                print(f"The value of y is: {self.y[d]}")
+                print(f"The value of dy is: {self.dy[d]}")
+                print(f"The value of ddy is: {self.ddy[d]}")
+                '''
+                self.ddy[d] = (self.ay[d] *
+                            (self.by[d] * (self.goal[d] - self.y[d]) -
+                            self.dy[d]/self.tau_dyn) + f + Cs[0]) * self.tau_dyn #added spatial coupling term
+            else:
+                self.ddy[d] = (self.ay[d] *
+                            (self.by[d] * (self.goal[d] - self.y[d]) -
+                            self.dy[d]/self.tau_dyn) + f ) * self.tau_dyn
+            if external_force is not None:
+                self.ddy[d] += external_force[d]
+            self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling
+            self.y[d] += self.dy[d] * self.dt * error_coupling
         return self.y, self.dy, self.ddy
+
     
     def step_original(self, tau=None, error=0.0, external_force=None, pose=None):
         """Run the DMP system for a single timestep.
