@@ -20,11 +20,11 @@ This softawre is modified version of original software provided by Travis DeWolf
 Modifications are made such that the software can be easily integrated in ROS.  
 '''
 import numpy as np
-
+import rospy
 from pydmps.cs import CanonicalSystem
-
+from interface_vision_utils.msg import ObjectPose
 import time
-
+#from threading import Lock
 
 class DMPs(object):
     """Implementation of Dynamic Motor Primitives,
@@ -49,6 +49,8 @@ class DMPs(object):
         self.n_dmps = n_dmps
         self.n_bfs = n_bfs
         self.dt = dt
+        self.aruco_pose = None
+        #self.aruco_pose_lock = Lock()
         if isinstance(y0, (int, float)):
             y0 = np.ones(self.n_dmps)*y0
         self.y0 = y0
@@ -69,6 +71,32 @@ class DMPs(object):
 
         # set up the DMP system
         self.reset_state()
+
+        # Subscriber
+        #rospy.init_node('object_pose_subscriber', anonymous=True)
+        
+        rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
+
+
+    def object_pose_callback(self, msg):
+        """
+        Callback function to process ObjectPose messages.
+        """
+        for i, name in enumerate(msg.name):
+            # Check if the object is tracked
+            is_tracked = msg.isTracked[i]
+            self.aruco_pose = msg.pose[i]
+
+            '''
+            if is_tracked:
+                rospy.loginfo(f"Object: {name}")
+                rospy.loginfo(f"  Position: x={pose.translation.x}, y={pose.translation.y}, z={pose.translation.z}")
+                rospy.loginfo(f"  Orientation: x={pose.rotation.x}, y={pose.rotation.y}, z={pose.rotation.z}, w={pose.rotation.w}")
+            else:
+                rospy.logwarn(f"Object: {name} is not tracked.")
+
+            '''
+
 
     def check_offset(self):
         """Check to see if initial position and goal are the same
@@ -229,21 +257,47 @@ class DMPs(object):
 
         self.reset_state()  # Reset the system to initial conditions
 
-        timesteps = int(self.timesteps / tau)
+        #timesteps = int(self.timesteps / tau)
         
-
-        for _ in range(timesteps):
+        y = self.y0
+        start_time_global = time.time()
+        #elapsed_time_global = 0.0
+        #for _ in range(timesteps):
+        while y is not self.goal:
             # Compute the next step of the DMP
+            
+            if self.aruco_pose is None:
+                rospy.logwarn("Aruco pose is not yet available, skipping step.")
+                rospy.sleep(self.dt)
+                continue
 
+            # Use the latest pose from self.aruco_pose
+            try:
+                current_pose = np.array([
+                    self.aruco_pose.translation.x,
+                    self.aruco_pose.translation.y,
+                    self.aruco_pose.translation.z,
+                    self.aruco_pose.rotation.x,
+                    self.aruco_pose.rotation.y,
+                    self.aruco_pose.rotation.z,
+                    self.aruco_pose.rotation.w,
+                ])
+            except AttributeError:
+                rospy.logwarn("Incomplete Aruco pose data, skipping step.")
+                rospy.sleep(self.dt)
+                continue
             # Start timing
-            start_time = time.time()
-            y, dy, ddy = self.step(tau=tau, **kwargs)
+            start_time_step = time.time()
+            y, dy, ddy = self.step(tau=tau, pose = current_pose, **kwargs)
             # End timing
-            end_time = time.time()
+            end_time_step = time.time()
 
             # Calculate and print the time taken for this step
-            computation_time = end_time - start_time
-            print(f"Computation time for this step: {computation_time:.6f} seconds")
+            computation_time = end_time_step - start_time_step
+            #print(f"Computation time for this step: {computation_time:.6f} seconds")
+
+            # Check if 40 seconds have passed since the loop started
+            elapsed_time_global = time.time() - start_time_global
             yield y, dy, ddy
 
 
@@ -251,18 +305,19 @@ class DMPs(object):
     def reset_state(self):
         """Reset the system state"""
         self.y = self.y0.copy()
+        self.y_old = self.y.copy()
         self.dy = np.zeros(self.n_dmps)
         self.ddy = np.zeros(self.n_dmps)
         self.cs.reset_state()
 
-    def step(self, tau=1.0, error=0.0, external_force=None):
+    def step(self, tau=1.0, error=0.0, external_force=None, pose=None):
         """Run the DMP system for a single timestep.
 
         tau float: scales the timestep
                    increase tau to make the system execute faster
         error float: optional system feedback
         """
-
+        #rospy.init_node("object_pose_subscriber")
         error_coupling = 1.0 / (1.0 + error)
         # run canonical system
         x = self.cs.step(tau=tau, error_coupling=error_coupling)
@@ -284,7 +339,16 @@ class DMPs(object):
                            self.dy[d]/tau) + f) * tau
             if external_force is not None:
                 self.ddy[d] += external_force[d]
+
+            # Compute velocity and position
             self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling
-            self.y[d] += self.dy[d] * self.dt * error_coupling
+            #rospy.loginfo(f"The pose of the aruco is: {self.aruco_pose}")
+            euc_dist = np.sqrt(pose[0]**2 + pose[1]**2 + pose[2]**2)
+            print(f"Euclidean distance: {euc_dist}")
+            if euc_dist < 0.3:
+                self.y[d] = self.y_old[d]
+            else:
+                self.y[d] += self.dy[d] * self.dt * error_coupling
+            self.y_old[d] = self.y[d]
 
         return self.y, self.dy, self.ddy

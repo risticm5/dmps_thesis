@@ -22,6 +22,8 @@ Modifications are made such that the software can be easily integrated in ROS.
 
 from pydmps.dmp import DMPs
 import numpy as np
+import rospy
+from interface_vision_utils.msg import ObjectPose
 
 
 class DMPs_discrete(DMPs):
@@ -40,7 +42,7 @@ class DMPs_discrete(DMPs):
         # trial and error to find this spacing
         self.h = np.ones(self.n_bfs) * self.n_bfs**1.5 / self.c / self.cs.ax
         self.check_offset()
-
+     
     def gen_centers(self):
         """Set the centre of the Gaussian basis
         functions be spaced evenly throughout run time"""

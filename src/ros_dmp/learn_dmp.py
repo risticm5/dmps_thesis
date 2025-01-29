@@ -132,6 +132,7 @@ class LearnDmp:
             self.result = "failed"
 
         # Imitate the same path as demonstrated
+        '''
         pos, vel, acc = self.dmp.rollout(goal=demonstrated_goal_pose, y0=demonstrated_initial_pose)
 
         # Publish Imitated Path
@@ -153,7 +154,7 @@ class LearnDmp:
             pose_stamped.pose.orientation.w = qw
             imitated_path.poses.append(pose_stamped)
         self.imitated_path_pub.publish(imitated_path)
-
+        '''
         # Publish Demonstrated Path
         demonstrated_path = Path()
         demonstrated_path.header.frame_id = "dmp_ref"

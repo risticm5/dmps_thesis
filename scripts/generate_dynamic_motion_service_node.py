@@ -8,6 +8,7 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, Pose
 import tf
 import time
+from interface_vision_utils.msg import ObjectPose
 
 class GenerateMotionClass:
     def __init__(self):
@@ -20,7 +21,12 @@ class GenerateMotionClass:
         self.trajectory_pub = rospy.Publisher('~cartesian_trajectory', CartesianTrajectory, queue_size=1)
         self.path_pub = rospy.Publisher('~cartesian_path', PoseStamped, queue_size=1)
 
+        # Subscriber
+        #self.aruco_pose = None
+        #rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
+
         self.verbose = True
+           
 
     def generate_motion(self, req):
         """Generates trajectory upon request in real-time."""
@@ -50,25 +56,26 @@ class GenerateMotionClass:
             rospy.loginfo(f"The initial orientation in quaternion is {req.initial_pose.pose.orientation}")
             rospy.loginfo(f"The goal pose is {goal_pose}")
             rospy.loginfo(f"The final orientation in quaternion is {req.goal_pose.pose.orientation}")
-
+        
+        # Create an object of class RollDmp (defined in the file 'roll_dmp.py')
         dmp = RollDmp(req.dmp_name, req.dt)
 
-        rospy.loginfo("Publishing points in real-time...")
-
         # Calculate the total time and expected interval per step
-        total_time = 1.0 / req.tau
-        num_points = int(dmp.dmp.timesteps / req.tau)  # Access timesteps from the DMPs_discrete instance
-        interval = total_time / num_points  # Time interval per point
+        #total_time = 1.0 / req.tau
+        #num_points = int(dmp.dmp.timesteps / req.tau)  # Access timesteps from the DMPs_discrete instance
+        #interval = total_time / num_points  # Time interval per point
 
         # Record the start time for synchronization
+        interval = req.dt
         start_time = time.time()
 
         # Initialize point counter
         point_counter = 0
 
-        # Iterate over the generator and publish one point at a time
+        # Iterate over the generator and publish one point at a time, as soon as available
         for pos, vel, acc in dmp.roll_generator(goal_pose, initial_pose, req.tau):
-            # Build pose and state messages
+
+            # Build pose (with resepect to the base frame) and state messages
             pose = Pose()
             pose.position.x, pose.position.y, pose.position.z = pos[:3]
             x, y, z, w = tf.transformations.quaternion_from_euler(*pos[3:])
@@ -119,9 +126,9 @@ class GenerateMotionClass:
         total_time_taken = end_time - start_time
 
         # Log completion
-        rospy.loginfo("Real-time trajectory publication complete.")
-        rospy.loginfo(f"Total time taken to publish all points: {total_time_taken:.4f} seconds")
-        rospy.loginfo(f"Total number of points published: {point_counter}")
+        #rospy.loginfo("Real-time trajectory publication complete.")
+        #rospy.loginfo(f"Total time taken to publish all points: {total_time_taken:.4f} seconds")
+        #rospy.loginfo(f"Total number of points published: {point_counter}")
 
         # Prepare the response
         response = GenerateMotionResponse()
