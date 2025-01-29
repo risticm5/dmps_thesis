@@ -64,6 +64,7 @@ class DMPs(object):
 
         self.ay = np.ones(n_dmps) * 25. if ay is None else ay  # Schaal 2012
         self.by = self.ay / 4. if by is None else by  # Schaal 2012
+        self.x_old = 1
 
         # set up the CS
         self.cs = CanonicalSystem(dt=self.dt, **kwargs)
@@ -231,7 +232,7 @@ class DMPs(object):
         for t in range(timesteps):
 
             # run and record timestep (you are 'appending' values)
-            y_track[t], dy_track[t], ddy_track[t] = self.step(**kwargs)
+            y_track[t], dy_track[t], ddy_track[t] = self.step_original(**kwargs)
 
             # At this point you can even think of publishing the current value...
 
@@ -263,7 +264,12 @@ class DMPs(object):
         start_time_global = time.time()
         #elapsed_time_global = 0.0
         #for _ in range(timesteps):
-        while y is not self.goal:
+        #print(f"The initial position is {self.y0}")
+        #print(f"The goal is {self.goal}")
+        #while y is not self.goal:
+        while np.linalg.norm(y[:3] - self.goal[:3]) > 0.01:
+            print(f"The error is {np.linalg.norm(y[:3] - self.goal[:3])}")
+        #while True:
             # Compute the next step of the DMP
             
             if self.aruco_pose is None:
@@ -296,7 +302,6 @@ class DMPs(object):
             computation_time = end_time_step - start_time_step
             #print(f"Computation time for this step: {computation_time:.6f} seconds")
 
-            # Check if 40 seconds have passed since the loop started
             elapsed_time_global = time.time() - start_time_global
             yield y, dy, ddy
 
@@ -309,6 +314,7 @@ class DMPs(object):
         self.dy = np.zeros(self.n_dmps)
         self.ddy = np.zeros(self.n_dmps)
         self.cs.reset_state()
+        self.x_old = 1
 
     def step(self, tau=1.0, error=0.0, external_force=None, pose=None):
         """Run the DMP system for a single timestep.
@@ -319,8 +325,17 @@ class DMPs(object):
         """
         #rospy.init_node("object_pose_subscriber")
         error_coupling = 1.0 / (1.0 + error)
+
         # run canonical system
-        x = self.cs.step(tau=tau, error_coupling=error_coupling)
+        euc_dist = np.sqrt(pose[0]**2 + pose[1]**2 + pose[2]**2)
+        print(f"Euclidean distance: {euc_dist}")
+        if euc_dist < 0.3:
+            x = self.x_old
+        else:
+            x = self.cs.step(tau=tau, error_coupling=error_coupling)
+        print(f"The value of the phase variable x is: {x}")
+
+        self.x_old = x
 
         # generate basis function activation
         psi = self.gen_psi(x)
@@ -343,12 +358,50 @@ class DMPs(object):
             # Compute velocity and position
             self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling
             #rospy.loginfo(f"The pose of the aruco is: {self.aruco_pose}")
-            euc_dist = np.sqrt(pose[0]**2 + pose[1]**2 + pose[2]**2)
-            print(f"Euclidean distance: {euc_dist}")
+            
             if euc_dist < 0.3:
                 self.y[d] = self.y_old[d]
             else:
                 self.y[d] += self.dy[d] * self.dt * error_coupling
             self.y_old[d] = self.y[d]
+
+        return self.y, self.dy, self.ddy
+    
+    def step_original(self, tau=None, error=0.0, external_force=None, pose=None):
+        """Run the DMP system for a single timestep.
+
+        tau float: scales the timestep
+                increase tau to make the system execute faster
+        error float: optional system feedback
+        """
+        print(f"The value of tau is {tau}")
+        #rospy.init_node("object_pose_subscriber")
+        error_coupling = 1.0 / (1.0 + error)
+        # run canonical system
+        x = self.cs.step(tau=tau, error_coupling=error_coupling)
+        print(f"The value of the phase variable x is: {x}")
+
+        # generate basis function activation
+        psi = self.gen_psi(x)
+
+        for d in range(self.n_dmps):
+
+            # Here some modifications could be done to
+            # Account for coupling terms based on the distance...
+
+            # generate the forcing term
+            f = (self.gen_front_term(x, d) *
+                (np.dot(psi, self.w[d])) / np.sum(psi))
+            # DMP acceleration
+            self.ddy[d] = (self.ay[d] *
+                        (self.by[d] * (self.goal[d] - self.y[d]) -
+                        self.dy[d]/tau) + f) * tau
+            if external_force is not None:
+                self.ddy[d] += external_force[d]
+
+            # Compute velocity and position
+            self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling
+            self.y[d] += self.dy[d] * self.dt * error_coupling
+
 
         return self.y, self.dy, self.ddy
