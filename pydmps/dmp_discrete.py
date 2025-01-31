@@ -130,30 +130,43 @@ class DMPs_discrete(DMPs):
         #parameters: a_d, delta_d, a_dt, delta_dt, k_t, k_s, alfa_d
         #fixed parameters :
         alfa_d = 20.0 #second order filter parameter
-        a_d= 13.0
-        delta_d = -0.35
+        a_d = -10
+        delta_d = 0.35
+        Cs = np.zeros(3)
+        #pom = np.zeros(6)
         #parameters to be optimized(in this case I took some initial values)
-        k= 0.0 # k = 0: you do not have coupling terms
+        k = 0 # k = 0: you do not have coupling terms
         a_dt = 1.0
         delta_dt = 0.29
         k_t=k_s=k
         #For now Cs is only implemneted for 1DOF
-        y_d = y_dot[0]#taking one DOF, out of 6
-        g = goal[0]
-        print(f"The goal is: {g}")
-        print(f"The measured value is: {y_measured[0]}")
-        d = np.abs(g-y_measured[0]) #distance between new goal pose and current pose, just 1DOF
+        y_d = y_dot[:3]#taking one DOF, out of 6
+        g = goal[:3]
+        #print(f"The goal is: {g}")
+        #print(f"The measured value is: {y_measured[:3]}")
+        #d = np.abs(g-y_measured[:3]) #distance between new goal pose and current pose, just 1DOF
+        d = y_measured[:3]
         #apply second order filter on the measured distance
-        self.dd_de[0] = alfa_d*(alfa_d/4*(d-self.de[0])-self.d_de[0])
-        print(f"The acceleration is: {self.dd_de}")
-        self.d_de[0] += self.dd_de[0] * tau * self.dt
-        print(f"The velocity is: {self.d_de}")
-        self.de[0] += self.d_de[0] * self.dt
-        pom=self.de[0]/d0[0]
-        sigma_d = 1/(1+np.exp(-a_d*(pom+delta_d)))
-        sigma_dt = 1/(1+np.exp(-a_dt*(self.d_de[0]+delta_dt)))
-        Ct = k_t *sigma_d *sigma_dt
-        Cs = -self.ay * tau *y_d * k_s *sigma_d *sigma_dt #for now 1DOF (y_d just first DOF)
+        self.dd_de[:3] = alfa_d * (alfa_d / 4 * (d - self.de[:3]) - self.d_de[:3])
+        #print(f"The acceleration is: {self.dd_de}")
+        self.d_de[:3] += self.dd_de[:3] * tau * self.dt
+        #print(f"The velocity is: {self.d_de}")
+        self.de[:3] += self.d_de[:3] * self.dt
+        #pom = self.de[:3]/d0[:3]
+        #pom = np.linalg.norm(self.de[:3])/np.linalg.norm(d0[:3])
+        #pom = np.linalg.norm(self.de[:3])
+        pom = np.linalg.norm(d)
+        print(f"The value of pom is: {pom}")
+        #sigma_d = (2 / (1 + np.exp(-a_d * (pom + delta_d)))) - 1
+        sigma_d = 1 / (1 + np.exp(a_d * (pom - delta_d)))
+        sigma_dt = (2 / (1 + np.exp(-a_dt * (np.linalg.norm(self.d_de[:3]) + delta_dt)))) - 1
+        #print(f"The value of sigma_d is: {sigma_d}")
+        #print(f"The value of sigma_dt is: {sigma_dt}")
+        #print(f"the value of yd is: {y_d}")
+        #print(f"Cs is: {Cs}")
+        # Ct = k_t * sigma_d * sigma_dt
+        Ct = k * sigma_d
+        Cs[:3] = -self.ay[:3] * tau * y_d * k_s * sigma_d * sigma_dt #for now 1DOF (y_d just first DOF)
 
         '''
         script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -169,7 +182,7 @@ class DMPs_discrete(DMPs):
 
 
 
-        return Ct, Cs, d
+        return Ct, Cs, d, self.d_de
         
 
 # ==============================

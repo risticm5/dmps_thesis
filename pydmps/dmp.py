@@ -85,6 +85,9 @@ class DMPs(object):
         self.d_not_filtered_plot = []
         self.d_filtered_plot = []
         self.goal_vec = []
+        self.Ct_vec = []
+        self.Cs_vec = []
+        self.vel_vec = []
         #self.d0 = np.zeros(6)
         #self.d_de = np.zeros(6)
         
@@ -325,7 +328,10 @@ class DMPs(object):
             csv_writer = csv.writer(csvfile)
             csv_writer.writerow(self.d_not_filtered_plot)
             csv_writer.writerow(self.d_filtered_plot)
-            csv_writer.writerow(self.goal_vec)
+            csv_writer.writerow(self.Ct_vec)
+            csv_writer.writerow(self.Cs_vec)
+            csv_writer.writerow(self.vel_vec)
+
         
 
 
@@ -364,13 +370,18 @@ class DMPs(object):
         #rospy.init_node("object_pose_subscriber")
         error_coupling = 1.0 / (1.0 + error)
 
-        Ct, Cs, d_plot = self.gen_coupling_terms(pose, goal, self.tau_dyn, self.dy, self.d0)
+        Ct, Cs, d_plot, vel_filtered_plot = self.gen_coupling_terms(pose, goal, self.tau_dyn, self.dy, self.d0)
         # Save the values of distance
-        self.d_not_filtered_plot.append(d_plot)
+        self.d_not_filtered_plot.append(d_plot[0])
         self.d_filtered_plot.append(self.de[0])
         self.goal_vec.append(goal[0])
+        self.Cs_vec.append(Cs[0])
+        self.Ct_vec.append(Ct)
+        self.vel_vec.append(vel_filtered_plot[0])
         tau0 = tau
-        self.tau_dyn =tau0 * (1 + Ct) #temporal coupling term
+        self.tau_dyn = tau0 * (1 - Ct) #temporal coupling term
+
+        print(f"The value of tau_dyn is: {self.tau_dyn}")
 
 
         # compute phase and basis functions
@@ -410,23 +421,9 @@ class DMPs(object):
             f = (self.gen_front_term(x, d) *
                  (np.dot(psi, self.w[d])) / np.sum(psi))
             # DMP acceleration
-            if(d==0):
-                '''
-                print(f"The value of tau_dyn is: {self.tau_dyn}")
-                print(f"The value of Cs is: {Cs}")
-                print(f"The value of f is: {f}")
-                print(f"the value of goal is: {self.goal[d]}")
-                print(f"The value of y is: {self.y[d]}")
-                print(f"The value of dy is: {self.dy[d]}")
-                print(f"The value of ddy is: {self.ddy[d]}")
-                '''
-                self.ddy[d] = (self.ay[d] *
-                            (self.by[d] * (self.goal[d] - self.y[d]) -
-                            self.dy[d]/self.tau_dyn) + f + Cs[0]) * self.tau_dyn #added spatial coupling term
-            else:
-                self.ddy[d] = (self.ay[d] *
-                            (self.by[d] * (self.goal[d] - self.y[d]) -
-                            self.dy[d]/self.tau_dyn) + f ) * self.tau_dyn
+            self.ddy[d] = (self.ay[d] *
+                        (self.by[d] * (self.goal[d] - self.y[d]) -
+                        self.dy[d]/self.tau_dyn) + f ) * self.tau_dyn
             if external_force is not None:
                 self.ddy[d] += external_force[d]
             self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling
