@@ -26,6 +26,7 @@ from interface_vision_utils.msg import ObjectPose
 import time
 import os
 import csv
+from scipy.spatial.transform import Rotation as R
 #from threading import Lock
 
 class DMPs(object):
@@ -64,7 +65,7 @@ class DMPs(object):
             w = np.zeros((self.n_dmps, self.n_bfs))
         self.w = w
 
-        self.ay = np.ones(n_dmps) * 25. if ay is None else ay  # Schaal 2012
+        self.ay = np.ones(n_dmps + 1) * 25. if ay is None else ay  # Schaal 2012
         self.by = self.ay / 4. if by is None else by  # Schaal 2012
         self.x_old = 1
 
@@ -88,7 +89,6 @@ class DMPs(object):
         self.Ct_vec = []
         self.Cs_vec = []
         self.vel_vec = []
-        #self.d0 = np.zeros(6)
         #self.d_de = np.zeros(6)
         
         rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
@@ -259,41 +259,35 @@ class DMPs(object):
         return y_track, dy_track, ddy_track
     
     def roll_generator(self, goal=None, y0=None, tau=1.0, **kwargs):
-        """
-        Generator for real-time rollout of the DMP.
-
-        Args:
-            goal (np.array): Goal position of the DMP.
-            y0 (np.array): Initial position of the DMP.
-            tau (float): Temporal scaling factor.
-
-        Yields:
-            tuple: (position, velocity, acceleration) at each time step.
-        """
+    
+        # Define the cartesian goal (dmp_link wrt base_link)
         if goal is not None:
-            self.goal = goal
+            self.goal[:3] = goal[:3]
 
-        if y0 is not None:
-            self.y0 = y0
-
-        self.reset_state_dynamic()  # Reset the system to initial conditions
-        self.d0 = goal - y0
-        
+        # Define the cartesian initial trajectory (dmp_link wrt base_link)
+        if y0[:3] is not None:
+            self.y0[:3] = y0[:3]
         y = self.y0
+
+        # Iniitalize robot quaternions (dmp_link wrt base_link) 
+        self.y_q = self.euler_to_quaternion(self.y0[-3:])
+
+        # Reset the state 
+        self.reset_state_dynamic()
+        
+        # Start timing      
         start_time_global = time.time()
 
-        # NOTE: add the condition on quaternions!!!
         while np.linalg.norm(y[:3] - self.goal[:3]) > 0.01:
             print(f"The error is {np.linalg.norm(y[:3] - self.goal[:3])}")
-        #while True:
-            # Compute the next step of the DMP
-            
+
+                       
             if self.aruco_pose is None:
                 rospy.logwarn("Aruco pose is not yet available, skipping step.")
                 rospy.sleep(self.dt)
                 continue
 
-            # Use the latest pose from self.aruco_pose
+            # Get the human pose (aruco marker) with respect to the base_link
             try:
                 current_pose = np.array([
                     self.aruco_pose.translation.x,
@@ -308,9 +302,13 @@ class DMPs(object):
                 rospy.logwarn("Incomplete Aruco pose data, skipping step.")
                 rospy.sleep(self.dt)
                 continue
+            
             # Start timing
             start_time_step = time.time()
-            y, dy, ddy = self.step(tau=tau, pose = current_pose, goal = self.goal, **kwargs)
+
+            # y, dy, ddy: pos, vel, acc of dmp_link wrt base_link
+            y, dy, ddy = self.step(tau = tau, pose = current_pose, goal = self.goal, **kwargs)
+
             # End timing
             end_time_step = time.time()
 
@@ -356,78 +354,184 @@ class DMPs(object):
 
         # New variables (filtered quantities)
         self.tau_dyn = 1.0
-        self.de = self.d0
-        self.d_de = np.zeros(6)
-        self.dd_de = np.zeros(6)
+        self.y_q = self.euler_to_quaternion(self.y[-3:].copy())
+        self.dy_q = np.zeros(4)
+        self.ddy_q = np.zeros(4)
+
+    def euler_to_quaternion(self, euler_angles):
+        r = R.from_euler('xyz', euler_angles, degrees=False)  # Convert from Euler to Quaternion
+        return r.as_quat()  # SciPy returns [x, y, z, w]
+
+    def quaternion_to_euler(self, q):
+        """
+        Convert quaternion to Euler angles (roll, pitch, yaw).
+        Input: 
+            q : array (4,) -> Quaternion [w, x, y, z]
+        Output:
+            euler : array (3,) -> [roll, pitch, yaw] in radians
+        """
+        print(f"The quaternion is: {q}")
+        q_mod = [q[0], q[1], q[2], q[3]]
+        r = R.from_quat(q_mod)  # Convert to [x, y, z, w] format
+        euler_angles = r.as_euler('xyz', degrees=False)  # Convert to radians
+        return euler_angles
+    
+    def compute_euler_velocity(self, euler, omega):
+
+        print(f"The euler angles are: {euler}")
+        print(f"omega is {omega}")
+        roll, pitch, yaw = euler
+        omega_xyz = omega[0:3]
+
+        # Transformation matrix T(phi, theta)
+        T = np.array([
+            [1, np.sin(roll) * np.tan(pitch), np.cos(roll) * np.tan(pitch)],
+            [0, np.cos(roll), -np.sin(roll)],
+            [0, np.sin(roll) / np.cos(pitch), np.cos(roll) / np.cos(pitch)]
+        ])
+
+        euler_velocity = np.dot(T, omega_xyz)  # Transform to Euler rate
+        return euler_velocity
+    
+    def quaternion_angular_velocity_to_euler(self, q, omega):
+        """
+        Convert angular velocity from quaternion representation to Euler angles.
+        Inputs:
+            q : array (4,) -> Quaternion [w, x, y, z]
+            omega : array (3,) -> Angular velocity [wx, wy, wz] in quaternion frame
+        Output:
+            euler_velocity : array (3,) -> [roll_rate, pitch_rate, yaw_rate]
+        """
+        euler = self.quaternion_to_euler(q)
+        roll, pitch, yaw = euler
+
+        # Transformation matrix from body angular velocity to Euler rate
+        T = np.array([
+            [1, np.sin(roll) * np.tan(pitch), np.cos(roll) * np.tan(pitch)],
+            [0, np.cos(roll), -np.sin(roll)],
+            [0, np.sin(roll) / np.cos(pitch), np.cos(roll) / np.cos(pitch)]
+        ])
+
+        euler_velocity = np.dot(T, omega)  # Convert to Euler rate
+        return euler_velocity
+
+    
+    def compute_euler_acceleration(self, euler, omega, omega_dot):
+        roll, pitch, yaw = euler
+        omega_xyz = omega[0:3]
+        omega_dot_xyz = omega_dot[0:3]
+
+        # Transformation matrix T(phi, theta)
+        T = np.array([
+            [1, np.sin(roll) * np.tan(pitch), np.cos(roll) * np.tan(pitch)],
+            [0, np.cos(roll), -np.sin(roll)],
+            [0, np.sin(roll) / np.cos(pitch), np.cos(roll) / np.cos(pitch)]
+        ])
+
+        # Compute time derivative of T(phi, theta)
+        T_dot = np.array([
+            [0, np.cos(roll) * np.tan(pitch) * omega_xyz[0] + np.sin(roll) / (np.cos(pitch)**2) * omega_xyz[1], -np.sin(roll) * np.tan(pitch) * omega_xyz[0] + np.cos(roll) / (np.cos(pitch)**2) * omega_xyz[1]],
+            [0, -np.sin(roll) * omega_xyz[0], -np.cos(roll) * omega_xyz[0]],
+            [0, (np.cos(roll) * omega_xyz[0] / np.cos(pitch)) + (np.sin(roll) * np.tan(pitch) * omega_xyz[1] / np.cos(pitch)), (-np.sin(roll) * omega_xyz[0] / np.cos(pitch)) + (np.cos(roll) * np.tan(pitch) * omega_xyz[1] / np.cos(pitch))]
+        ])
+
+        # Compute Euler acceleration
+        euler_acceleration = np.dot(T, omega_dot_xyz) + np.dot(T_dot, omega_xyz)
+        return euler_acceleration
 
     def step(self, tau=1.0, error=0.0, external_force=None, pose=None, goal=None):
-        """Run the DMP system for a single timestep.
-
-        tau float: scales the timestep
-                   increase tau to make the system execute faster
-        error float: optional system feedback
-        """
-        #rospy.init_node("object_pose_subscriber")
+        ''' 
+        tau = tau0 defined with PBO
+        pose = human hand wrt base_link (pose[-4:] is the dynamic goal)
+        goal: final x, y, z coordinates of dmp_link wrt base_link
+        '''
         error_coupling = 1.0 / (1.0 + error)
 
-        Ct, Cs, d_plot, vel_filtered_plot = self.gen_coupling_terms(pose, goal, self.tau_dyn, self.dy, self.d0)
-        # Save the values of distance
-        self.d_not_filtered_plot.append(d_plot[0])
-        self.d_filtered_plot.append(self.de[0])
-        self.goal_vec.append(goal[0])
-        self.Cs_vec.append(Cs[0])
-        self.Ct_vec.append(Ct)
-        self.vel_vec.append(vel_filtered_plot[0])
+        Ct, Cs = self.gen_coupling_terms(pose, self.y_q)
+
+        # Save some values for the plots
+        #self.d_not_filtered_plot.append(d_plot[0])
+        #self.d_filtered_plot.append(self.de[0])
+        #self.goal_vec.append(goal[0])
+        #self.Cs_vec.append(Cs[0])
+        #self.Ct_vec.append(Ct)
+        #self.vel_vec.append(vel_filtered_plot[0])
+
+        # Compute the new tau
         tau0 = tau
-        self.tau_dyn = tau0 * (1 - Ct) #temporal coupling term
-
+        self.tau_dyn = tau0 * (1 - Ct)
         print(f"The value of tau_dyn is: {self.tau_dyn}")
-
 
         # compute phase and basis functions
         x = self.cs.step(tau=self.tau_dyn, error_coupling=error_coupling)
         psi = self.gen_psi(x)
-
-        '''
+        f_vec = []
+        f_q = []
+        # precompute forcing terms
         for d in range(self.n_dmps):
-
-            # Here some modifications could be done to
-            # Account for coupling terms based on the distance...
-
-            # generate the forcing term
             f = (self.gen_front_term(x, d) *
                  (np.dot(psi, self.w[d])) / np.sum(psi))
-            # DMP acceleration
-            self.ddy[d] = (self.ay[d] *
-                           (self.by[d] * (self.goal[d] - self.y[d]) -
-                           self.dy[d]/tau) + f) * tau
-            if external_force is not None:
-                self.ddy[d] += external_force[d]
+            f_vec.append(f)
+        
+        # Convert to forcing terms for quaternions
+        #q = R.from_euler('xyz', f_vec[-3:], degrees=True).as_quat()  # [x, y, z, w]
+        f_q = R.from_rotvec(f_vec[-3:]).as_quat()
 
-            # Compute velocity and position
-            self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling
-            #rospy.loginfo(f"The pose of the aruco is: {self.aruco_pose}")
-            
-            if euc_dist < 0.3:
-                self.y[d] = self.y_old[d]
-            else:
+        # Scale the quaternion forcing term (approximation)
+        f_quaternion = np.concatenate(([0], f_q[0:3]))
+
+
+        # Loop from d = 1 to d = 6
+        for d in range(self.n_dmps + 1):
+            print(f"the value of d is: {d}")
+            # generate the forcing term
+            #f = (self.gen_front_term(x, d) *
+            #     (np.dot(psi, self.w[d])) / np.sum(psi))
+            #print(f"The value of the forcing term f is: {f}")
+            if d <= 2:
+                
+                # DMP acceleration
+                self.ddy[d] = (self.ay[d] *
+                            (self.by[d] * (self.goal[d] - self.y[d]) -
+                            self.dy[d]/self.tau_dyn) + f_vec[d]  + Cs[d]) * self.tau_dyn
+                
+                if external_force is not None:
+                    self.ddy[d] += external_force[d]
+
+                self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling
                 self.y[d] += self.dy[d] * self.dt * error_coupling
-            self.y_old[d] = self.y[d]
 
-        '''
+            else:
 
-        for d in range(self.n_dmps):
-            # generate the forcing term
-            f = (self.gen_front_term(x, d) *
-                 (np.dot(psi, self.w[d])) / np.sum(psi))
-            # DMP acceleration
-            self.ddy[d] = (self.ay[d] *
-                        (self.by[d] * (self.goal[d] - self.y[d]) -
-                        self.dy[d]/self.tau_dyn) + f ) * self.tau_dyn
-            if external_force is not None:
-                self.ddy[d] += external_force[d]
-            self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling
-            self.y[d] += self.dy[d] * self.dt * error_coupling
+                # Equations in terms of quaternions (d = 3, 4, 5, 6)
+                self.ddy_q[d - 3] = (self.ay[d] *
+                            (self.by[d] * (pose[d] - self.y_q[d - 3]) -
+                            self.dy_q[d - 3]/self.tau_dyn) + f_quaternion[d - 3] + Cs[d]) * self.tau_dyn
+                
+                if external_force is not None:
+                    self.ddy_q[d - 3] += external_force[d]
+
+                self.dy_q[d - 3] += self.ddy_q[d - 3] * self.tau_dyn * self.dt * error_coupling
+                self.y_q[d - 3] += self.dy_q[d - 3] * self.dt * error_coupling
+
+        # Convert from quaternion to euler
+        q_r = self.y_q[-4:]
+        omega_r = self.dy_q[-4:]
+        omega_r_dot = self.ddy_q[-4:]
+
+        print(f"q_r is: {q_r}")
+
+        # Convert quaternion to Euler angles
+        euler_angles = self.quaternion_to_euler(q_r)
+        euler_velocity = self.compute_euler_velocity(euler_angles, omega_r)
+        euler_acceleration = self.compute_euler_acceleration(euler_angles, omega_r, omega_r_dot)
+
+        # Append the euler angles to the y vector
+        self.y[-3:] = euler_angles
+        self.dy[-3:] = euler_velocity
+        self.ddy[-3:] = euler_acceleration
+
+        # 6x1 vectors representing the trajectories of dmp_link wrt base_link
         return self.y, self.dy, self.ddy
 
     
@@ -456,6 +560,8 @@ class DMPs(object):
             # generate the forcing term
             f = (self.gen_front_term(x, d) *
                 (np.dot(psi, self.w[d])) / np.sum(psi))
+            print(f"The value of the forcing term f is: {f}")
+
             # DMP acceleration
             self.ddy[d] = (self.ay[d] *
                         (self.by[d] * (self.goal[d] - self.y[d]) -

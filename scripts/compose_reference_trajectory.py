@@ -49,10 +49,10 @@ class OculusPoseLogger:
         """Get the pose of tool0 with respect to base_link."""
         try:
             # Wait for the transform to be available
-            self.tf_listener.waitForTransform("base_link", "tool0", rospy.Time(), rospy.Duration(1.0))
+            self.tf_listener.waitForTransform("base_link", "dmp_link", rospy.Time(), rospy.Duration(1.0))
             
             # Lookup the transform
-            (trans, rot) = self.tf_listener.lookupTransform("base_link", "tool0", rospy.Time(0))
+            (trans, rot) = self.tf_listener.lookupTransform("base_link", "dmp_link", rospy.Time(0))
             return trans, rot
         except (tf.Exception, tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
             rospy.logerr(f"Error getting transform: {e}")

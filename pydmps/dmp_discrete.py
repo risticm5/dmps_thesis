@@ -24,9 +24,8 @@ from pydmps.dmp import DMPs
 import numpy as np
 import rospy
 from interface_vision_utils.msg import ObjectPose
-import sys
-import os
-import csv
+import tf
+from scipy.spatial.transform import Rotation as R
 
 
 class DMPs_discrete(DMPs):
@@ -45,6 +44,9 @@ class DMPs_discrete(DMPs):
         # trial and error to find this spacing
         self.h = np.ones(self.n_bfs) * self.n_bfs**1.5 / self.c / self.cs.ax
         self.check_offset()
+
+        # Initialize the listener
+        self.tf_listener = tf.TransformListener()
      
     def gen_centers(self):
         """Set the centre of the Gaussian basis
@@ -74,6 +76,8 @@ class DMPs_discrete(DMPs):
         x float: the current value of the canonical system
         dmp_num int: the index of the current dmp
         """
+        print(f"self.goal: {self.goal}")
+        print(f"self.y0: {self.y0}")
         return x * (self.goal[dmp_num] - self.y0[dmp_num])
 
     def gen_goal(self, y_des):
@@ -119,70 +123,62 @@ class DMPs_discrete(DMPs):
                 self.w[d, b] = numer / (k * denom)
         self.w = np.nan_to_num(self.w)
 
-    def gen_coupling_terms(self, y_measured, goal, tau, y_dot, d0):
-        '''
-        Generates the coupling term
-        y_dot float, array: current velocity array (6DOF)
-        y_measured : the state feedback(measured) value (1DOF)
-        goal : the goal position (6DOF)
-        d0 : the initial distances(6DOF)
-        '''
-        #parameters: a_d, delta_d, a_dt, delta_dt, k_t, k_s, alfa_d
-        #fixed parameters :
-        alfa_d = 20.0 #second order filter parameter
+    def gen_coupling_terms(self, y_h, y_q):
+        
+        # Parameters for sigmoidal for distance and Ct
         a_d = -10
         delta_d = 0.35
-        Cs = np.zeros(3)
-        #pom = np.zeros(6)
-        #parameters to be optimized(in this case I took some initial values)
-        k = 0 # k = 0: you do not have coupling terms
-        a_dt = 1.0
-        delta_dt = 0.29
-        k_t=k_s=k
-        #For now Cs is only implemneted for 1DOF
-        y_d = y_dot[:3]#taking one DOF, out of 6
-        g = goal[:3]
-        #print(f"The goal is: {g}")
-        #print(f"The measured value is: {y_measured[:3]}")
-        #d = np.abs(g-y_measured[:3]) #distance between new goal pose and current pose, just 1DOF
-        d = y_measured[:3]
-        #apply second order filter on the measured distance
-        self.dd_de[:3] = alfa_d * (alfa_d / 4 * (d - self.de[:3]) - self.d_de[:3])
-        #print(f"The acceleration is: {self.dd_de}")
-        self.d_de[:3] += self.dd_de[:3] * tau * self.dt
-        #print(f"The velocity is: {self.d_de}")
-        self.de[:3] += self.d_de[:3] * self.dt
-        #pom = self.de[:3]/d0[:3]
-        #pom = np.linalg.norm(self.de[:3])/np.linalg.norm(d0[:3])
-        #pom = np.linalg.norm(self.de[:3])
-        pom = np.linalg.norm(d)
+        kt = 0
+
+        # Get the robot pose
+        self.tf_listener.waitForTransform("base_link", "dmp_link", rospy.Time(), rospy.Duration(1.0))
+        (trans, _) = self.tf_listener.lookupTransform("base_link", "dmp_link", rospy.Time(0))
+
+        # Initialize Cs
+        Cs = np.zeros(7)
+        ks = 1
+
+        q_r = y_q # robot quaternion (dmp_link wrt base_link)
+        q_h = y_h[-4:] # human quaternion (aruco wrt base_link)
+        pom = np.linalg.norm(y_h[:3] - trans)
         print(f"The value of pom is: {pom}")
-        #sigma_d = (2 / (1 + np.exp(-a_d * (pom + delta_d)))) - 1
+
+        # Compute Ct
         sigma_d = 1 / (1 + np.exp(a_d * (pom - delta_d)))
-        sigma_dt = (2 / (1 + np.exp(-a_dt * (np.linalg.norm(self.d_de[:3]) + delta_dt)))) - 1
-        #print(f"The value of sigma_d is: {sigma_d}")
-        #print(f"The value of sigma_dt is: {sigma_dt}")
-        #print(f"the value of yd is: {y_d}")
-        #print(f"Cs is: {Cs}")
-        # Ct = k_t * sigma_d * sigma_dt
-        Ct = k * sigma_d
-        Cs[:3] = -self.ay[:3] * tau * y_d * k_s * sigma_d * sigma_dt #for now 1DOF (y_d just first DOF)
+        Ct = kt * sigma_d
 
-        '''
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(script_dir, "distance.csv")  # File path in the script's directory
-        with open(file_path, mode='w', newline='') as csvfile:
-            csv_writer = csv.writer(csvfile)
-            
-            # Write the header
-            #csv_writer.writerow(["distance_x (m)"])
-            # Write the data to the file (flatten positions, velocities, accelerations)
-            csv_writer.writerow(d)
-        '''
+        # Compute quaternion error
+        print(f"q_r: {q_r}")
+        print(f"q_h: {q_h}")
+        
+        # Ensure q_r and q_h are formatted correctly for SciPy
+        q_r_scipy = [q_r[0], q_r[1], q_r[2], q_r[3]]  # Convert from [w, x, y, z] to [x, y, z, w]
+        q_h_scipy = [q_h[0], q_h[1], q_h[2], q_h[3]]  # Convert from [w, x, y, z] to [x, y, z, w]
 
+        # Convert to Rotation objects
+        q_r_rot = R.from_quat(q_r_scipy)  # q_r as Rotation object
+        q_r_inv = q_r_rot.inv()  # Compute inverse
+        q_h_rot = R.from_quat(q_h_scipy)  # q_h as Rotation object
 
+        # Compute quaternion error (rotation difference)
+        q_error = q_h_rot * q_r_inv  # Both are now Rotation objects
+        q_error_quat = q_error.as_quat()  # Returns [x, y, z, w]
 
-        return Ct, Cs, d, self.d_de
+        # Convert quaternion back to Rotation
+        r = R.from_quat(q_error_quat)
+        #r = R.from_quat(q_error[1:]) 
+        axis_angle = r.as_rotvec()  
+        omega_error = 2 * axis_angle
+        
+        # Compute Cs
+        print(f"omega_error: {omega_error}")
+        print(f"sigma_d: {sigma_d}")
+        
+        omega_4x1 = np.hstack([omega_error, 0])
+        Cs[-4:] = ks * sigma_d * omega_4x1
+        print(f"Cs: {Cs}")
+
+        return Ct, Cs
         
 
 # ==============================
