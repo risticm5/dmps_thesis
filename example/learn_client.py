@@ -87,6 +87,7 @@ if __name__ == "__main__":
                 pose.orientation.z = qz
                 pose.orientation.w = qw
                 poses.append(pose)
+                
     except FileNotFoundError:
         rospy.logerr(f"File not found.")
         exit(1)

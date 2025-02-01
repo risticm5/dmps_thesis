@@ -60,11 +60,7 @@ if __name__ == "__main__":
     req.goal_pose.pose.orientation.y = float(row_goal[5])
     req.goal_pose.pose.orientation.z = float(row_goal[6])
     req.goal_pose.pose.orientation.w = float(row_goal[7])
-
-    #rospy.loginfo(f"The inital pose is: {req.initial_pose}")
-    #rospy.loginfo(f"The goal pose is: {req.goal_pose}")
-
-    
+  
     try:
         service_client = rospy.ServiceProxy('/generate_motion_service', GenerateMotion)
         rospy.loginfo(service_client(req))

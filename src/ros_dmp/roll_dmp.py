@@ -58,19 +58,20 @@ class RollDmp():
         with open(file_name) as f:
             loadeddict = yaml.safe_load(f)
         x = loadeddict.get('x')
-        rospy.loginfo(f"The loaded weights for x are: {x}")
         y = loadeddict.get('y')
         z = loadeddict.get('z')
-        roll = loadeddict.get('roll')
-        pitch = loadeddict.get('pitch')
-        yaw = loadeddict.get('yaw')
+        qx = loadeddict.get('qx')
+        qy = loadeddict.get('qy')
+        qz = loadeddict.get('qz')
+        qw = loadeddict.get('qw')
 
         weights = np.array(x)
         weights = np.vstack((weights, np.array(y)))
         weights = np.vstack((weights, np.array(z)))
-        weights = np.vstack((weights, np.array(roll)))
-        weights = np.vstack((weights, np.array(pitch)))
-        weights = np.vstack((weights, np.array(yaw)))
+        weights = np.vstack((weights, np.array(qx)))
+        weights = np.vstack((weights, np.array(qy)))
+        weights = np.vstack((weights, np.array(qz)))
+        weights = np.vstack((weights, np.array(qw)))
 
         return weights
 

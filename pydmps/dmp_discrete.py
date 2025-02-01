@@ -1,25 +1,3 @@
-'''
-Copyright (C) 2013 Travis DeWolf
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-'''
-'''
-Modified by : Abhishek Padalkar
-This softawre is modified version of original software provided by Travis DeWolf.
-Modifications are made such that the software can be easily integrated in ROS.  
-'''
-
 from pydmps.dmp import DMPs
 import numpy as np
 import rospy
@@ -76,8 +54,8 @@ class DMPs_discrete(DMPs):
         x float: the current value of the canonical system
         dmp_num int: the index of the current dmp
         """
-        print(f"self.goal: {self.goal}")
-        print(f"self.y0: {self.y0}")
+        #print(f"self.goal: {self.goal}")
+        #print(f"self.y0: {self.y0}")
         return x * (self.goal[dmp_num] - self.y0[dmp_num])
 
     def gen_goal(self, y_des):
@@ -102,11 +80,6 @@ class DMPs_discrete(DMPs):
         return np.exp(-self.h * (x - self.c)**2)
 
     def gen_weights(self, f_target):
-        """Generate a set of weights over the basis functions such
-        that the target forcing term trajectory is matched.
-
-        f_target np.array: the desired forcing term trajectory
-        """
 
         # calculate x and psi
         x_track = self.cs.rollout()
@@ -136,47 +109,32 @@ class DMPs_discrete(DMPs):
 
         # Initialize Cs
         Cs = np.zeros(7)
-        ks = 1
+        ks = 2
 
-        q_r = y_q # robot quaternion (dmp_link wrt base_link)
+        q_r = y_q[-4:] # robot quaternion (dmp_link wrt base_link)
         q_h = y_h[-4:] # human quaternion (aruco wrt base_link)
+        #print(f"robot quaternion: {q_r}")
+        #print(f"human quaternion: {q_h}")
         pom = np.linalg.norm(y_h[:3] - trans)
-        print(f"The value of pom is: {pom}")
+        #print(f"The value of pom is: {pom}")
 
         # Compute Ct
         sigma_d = 1 / (1 + np.exp(a_d * (pom - delta_d)))
         Ct = kt * sigma_d
-
-        # Compute quaternion error
-        print(f"q_r: {q_r}")
-        print(f"q_h: {q_h}")
-        
-        # Ensure q_r and q_h are formatted correctly for SciPy
+      
+        # Compute Cs
         q_r_scipy = [q_r[0], q_r[1], q_r[2], q_r[3]]  # Convert from [w, x, y, z] to [x, y, z, w]
         q_h_scipy = [q_h[0], q_h[1], q_h[2], q_h[3]]  # Convert from [w, x, y, z] to [x, y, z, w]
-
-        # Convert to Rotation objects
         q_r_rot = R.from_quat(q_r_scipy)  # q_r as Rotation object
         q_r_inv = q_r_rot.inv()  # Compute inverse
         q_h_rot = R.from_quat(q_h_scipy)  # q_h as Rotation object
-
-        # Compute quaternion error (rotation difference)
         q_error = q_h_rot * q_r_inv  # Both are now Rotation objects
         q_error_quat = q_error.as_quat()  # Returns [x, y, z, w]
-
-        # Convert quaternion back to Rotation
         r = R.from_quat(q_error_quat)
-        #r = R.from_quat(q_error[1:]) 
         axis_angle = r.as_rotvec()  
-        omega_error = 2 * axis_angle
-        
-        # Compute Cs
-        print(f"omega_error: {omega_error}")
-        print(f"sigma_d: {sigma_d}")
-        
+        omega_error = 2 * axis_angle       
         omega_4x1 = np.hstack([omega_error, 0])
         Cs[-4:] = ks * sigma_d * omega_4x1
-        print(f"Cs: {Cs}")
 
         return Ct, Cs
         

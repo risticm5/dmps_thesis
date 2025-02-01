@@ -30,21 +30,13 @@ class GenerateMotionClass:
         '''
         rospy.loginfo("Received motion generation request")
         # Initial pose
-        rpy = tf.transformations.euler_from_quaternion([req.initial_pose.pose.orientation.x, req.initial_pose.pose.orientation.y,
-                                                                    req.initial_pose.pose.orientation.z, req.initial_pose.pose.orientation.w])
         initial_pose = np.array([req.initial_pose.pose.position.x, req.initial_pose.pose.position.y, req.initial_pose.pose.position.z,
-                            rpy[0], rpy[1], rpy[2]])
-        if self.verbose: rospy.loginfo(f"The initial pose is {initial_pose}")
+                            req.initial_pose.pose.orientation.x, req.initial_pose.pose.orientation.y, req.initial_pose.pose.orientation.z, req.initial_pose.pose.orientation.w])
         
         # Goal Pose
-        rpy = tf.transformations.euler_from_quaternion([req.goal_pose.pose.orientation.x, req.goal_pose.pose.orientation.y,
-                                                                    req.goal_pose.pose.orientation.z, req.goal_pose.pose.orientation.w])
         goal_pose = np.array([req.goal_pose.pose.position.x, req.goal_pose.pose.position.y, req.goal_pose.pose.position.z,
-                            rpy[0], rpy[1], rpy[2]])
+                            req.goal_pose.pose.orientation.x, req.goal_pose.pose.orientation.y, req.goal_pose.pose.orientation.z, req.goal_pose.pose.orientation.w])
         
-        if self.verbose: rospy.loginfo(f"The goal pose is {goal_pose}")
-        if self.verbose: rospy.loginfo("Generating motion for dmp " + req.dmp_name)
-
         dmp = RollDmp(req.dmp_name, req.dt)
 
         # 'roll' is based on 'rollout' and it gives the complete trajectories
@@ -60,11 +52,10 @@ class GenerateMotionClass:
             pose.position.x = pos[i, 0]
             pose.position.y = pos[i, 1]
             pose.position.z = pos[i, 2]
-            x, y, z, w = tf.transformations.quaternion_from_euler(pos[i, 3], pos[i, 4], pos[i, 5])
-            pose.orientation.x = x
-            pose.orientation.y = y
-            pose.orientation.z = z
-            pose.orientation.w = w
+            pose.orientation.x = pos[i, 3]
+            pose.orientation.y = pos[i, 4]
+            pose.orientation.z = pos[i, 5]
+            pose.orientation.w = pos[i, 6]
             
             cartesian_state = CartesianState()
             cartesian_state.pose = pose
@@ -74,10 +65,10 @@ class GenerateMotionClass:
             cartesian_state.pose.position.x = pos[i, 0]
             cartesian_state.pose.position.y = pos[i, 1]
             cartesian_state.pose.position.z = pos[i, 2]
-            cartesian_state.pose.orientation.x = x
-            cartesian_state.pose.orientation.y = y
-            cartesian_state.pose.orientation.z = z
-            cartesian_state.pose.orientation.w = w
+            cartesian_state.pose.orientation.x = pos[i, 3]
+            cartesian_state.pose.orientation.y = pos[i, 4]
+            cartesian_state.pose.orientation.z = pos[i, 5]
+            cartesian_state.pose.orientation.w = pos[i, 6]
 
             cartesian_state.vel.linear.x = vel[i, 0]
             cartesian_state.vel.linear.y = vel[i, 1]
@@ -85,6 +76,7 @@ class GenerateMotionClass:
             cartesian_state.vel.angular.x = vel[i, 3]
             cartesian_state.vel.angular.y = vel[i, 4]
             cartesian_state.vel.angular.z = vel[i, 5]
+            #cartesian_state.vel.angular.w = vel[i, 6]
 
             cartesian_state.acc.linear.x = acc[i, 0]
             cartesian_state.acc.linear.y = acc[i, 1]
@@ -92,6 +84,7 @@ class GenerateMotionClass:
             cartesian_state.acc.angular.x = acc[i, 3]
             cartesian_state.acc.angular.y = acc[i, 4]
             cartesian_state.acc.angular.z = acc[i, 5]
+            #cartesian_state.acc.angular.w = acc[i, 6]
             
             cartesian_trajectory.cartesian_state.append(cartesian_state)
             path.poses.append(pose_stamped)
