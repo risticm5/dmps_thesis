@@ -97,7 +97,7 @@ class DMPs(object):
         y_des list/array: the desired trajectories of each DMP
                           should be shaped [n_dmps, run_time]
         """
-
+        #There are some changes added by Christian in order to have normal interpolation!
         # set initial state and goal
         if y_des.ndim == 1:
             y_des = y_des.reshape(1, len(y_des))
@@ -196,6 +196,12 @@ class DMPs(object):
             else:
                 timesteps = self.timesteps
 
+        #change of ay and by parameters - GLISp optimiz of this param
+        if 'ay_glisp' in kwargs:
+            self.ay=np.ones(self.n_dmps) * kwargs['ay_glisp']
+        if 'by_glisp' in kwargs:
+            self.by=np.ones(self.n_dmps) * kwargs['by_glisp']
+        
         # set up tracking vectors
         y_track = np.zeros((timesteps, self.n_dmps))
         dy_track = np.zeros((timesteps, self.n_dmps))
@@ -255,7 +261,9 @@ class DMPs(object):
         self.ddy = np.zeros(self.n_dmps)
         self.cs.reset_state()
 
-    def step(self, tau=1.0, error=0.0, external_force=None):
+    #step is changed now in order to accept GLISp optimization of parameters ay and by
+    # ay_glisp and by_glisp are added just for code to work okay, but not used inside step
+    def step(self, tau=1.0, error=0.0, external_force=None, ay_glisp=25.0, by_glisp=6.25):
         """Run the DMP system for a single timestep.
 
         tau float: scales the timestep

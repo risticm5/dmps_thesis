@@ -10,6 +10,7 @@ import tf
 from std_msgs.msg import Time
 
 #generate motion for static dmps - Marko
+#same as Christian generate_static_motion_service_node.py, just added part for GLISp execution
 
 class GenerateMotionClass:
 
@@ -42,9 +43,16 @@ class GenerateMotionClass:
         goal_pose = np.array([req.goal_pose.pose.position.x, req.goal_pose.pose.position.y, req.goal_pose.pose.position.z,
                             rpy[0], rpy[1], rpy[2]])
 
+        #ay and by parameters are added for GLISp optimization
+        ay_glisp = req.ay
+        by_glisp = req.by
+        
         rospy.loginfo("Generating motion for dmp " + req.dmp_name)
         dmp = RollDmp(req.dmp_name, req.dt)
+        #Normal execution - without GLISp optimization of ay and by
         pos, vel, acc = dmp.roll(goal_pose, initial_pose, req.tau)
+        #GLISp execution - wit GLISp optimization of ay and by
+        pos, vel, acc = dmp.roll(goal_pose, initial_pose, req.tau, ay=ay_glisp, by=by_glisp)
 
         # Publish cartesian trajectory
         cartesian_trajectory = CartesianTrajectory()

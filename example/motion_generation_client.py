@@ -14,12 +14,21 @@ if __name__ == "__main__":
     
     #Taking the values for tau and delta_t from GLISp algorithm, 
     # they are parameters to optimize in open loop controller case
-    input_tau = input("Please enter value for tau: ")
-    tau= float(input_tau)
-    input_dt = input("Please enter value for delta_t: ")
-    dt= float(input_dt)
-    req.tau = tau
-    req.dt = dt
+    #input_tau = input("Please enter value for tau: ")
+    #tau= float(input_tau)
+    #input_dt = input("Please enter value for delta_t: ")
+    #dt= float(input_dt)
+    #req.tau = tau
+    #req.dt = dt
+    req.tau = 0.2
+    req.dt = 0.05
+    #We can also add parameters ay and by to GLISp algorithm
+    input_ay = input("Please enter value for ay: ")
+    ay= float(input_ay)
+    input_by = input("Please enter value for by: ")
+    by= float(input_by)
+    req.ay = ay
+    req.by = by
 
     """
     # Compose request message - Marko -ramp trajectory

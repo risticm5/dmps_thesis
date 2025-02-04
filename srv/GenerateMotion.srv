@@ -3,6 +3,8 @@ geometry_msgs/PoseStamped initial_pose
 geometry_msgs/PoseStamped goal_pose
 float64 tau
 float64 dt
+float64 ay #parameter added for GLISp optimization
+float64 by #parameter added for GLISp optimization
 ---
 string result
 CartesianTrajectory cart_traj
