@@ -110,7 +110,7 @@ class LearnDmp:
                 'z': np.asarray(weights[2, :]).tolist(), 'qx': np.asarray(weights[3, :]).tolist(),
                 'qy': np.asarray(weights[4, :]).tolist(),
                 'qz': np.asarray(weights[5, :]).tolist(),
-                'qw': np.asarray(weights[5, :]).tolist()}
+                'qw': np.asarray(weights[6, :]).tolist()}
         
         file = join(self.weights_file_path, file_name)
         rospy.loginfo("Saving weights to file: " + file)
