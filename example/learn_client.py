@@ -32,21 +32,6 @@ def ensure_smaller_axis_angle(x, y, z, w):
     return x, y, z, w
 
 if __name__ == "__main__":
-    ''' 
-    Generate the reference trajectory from a CSV file and call the learn_dmp service.
-    The reference frame is dmp_ref, aligned with the 'world' frame of the UR5e robot.
-    '''
-
-    ''' 
-    self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        sys.path.append(self.script_dir)
-        self.file_path = os.path.join(self.script_dir, "../reference_trajectory.csv")
-
-        # Open the file and keep it open for the lifetime of the object
-        self.csv_file = open(self.file_path, mode="w", newline="")
-        self.csv_writer = csv.writer(self.csv_file)
-        self.csv_writer.writerow(['Timestamp', 'x', 'y', 'z', 'qx', 'qy', 'qz', 'qw'])
-    '''
 
     rospy.init_node('learn_dmp_service_test_client')
     req = LearnDMPRequest()
@@ -87,7 +72,7 @@ if __name__ == "__main__":
                 pose.orientation.z = qz
                 pose.orientation.w = qw
                 poses.append(pose)
-                
+             
     except FileNotFoundError:
         rospy.logerr(f"File not found.")
         exit(1)

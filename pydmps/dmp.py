@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2013 Travis DeWolf
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+'''
+Modified by : Abhishek Padalkar
+This softawre is modified version of original software provided by Travis DeWolf.
+Modifications are made such that the software can be easily integrated in ROS.  
+'''
 import numpy as np
 import rospy
 from pydmps.cs import CanonicalSystem
@@ -7,11 +28,45 @@ import os
 import csv
 from scipy.spatial.transform import Rotation as R
 
+
+#Compute axis-angle rotation representation from quaternion (logarithmic map)
+def qLog(q):
+    # Ensure the quaternion is normalized
+    norm_q = np.linalg.norm(q)
+    if norm_q == 0:
+        return R.from_quat([0, 0, 0, 1])
+    q = q / norm_q
+    # Convert quaternion to a rotation object
+    rot = R.from_quat(q) # the right order of quat: qx,qy,qz,qw for scipy verson 1.10.1 that I use
+    # Get the axis-angle representation (angle and axis) with :axis_angle = rot.as_rotvec(), if you need
+    return rot
+
+#Compute quaternion from axis-angle representation (exponential map)
+def vecExp(axis_angle):
+    # Create a rotation object from axis-angle
+    rot = R.from_rotvec(axis_angle)
+    # Convert to quaternion
+    q = rot.as_quat()  # Returns [x, y, z, w]
+    return q
+
+
+def compute_quaternion_distance(q2,q1):
+    #computes rotational angles, that represent distance between quaternions q2 and q1
+
+    # Compute axis-angle representations of quat
+    rot1 = qLog(q1) #this will be rotation angles
+    rot2 = qLog(q2)
+    # Compute the relative rotation: q2 * q1^-1
+    relative_rot = rot2 * rot1.inv() 
+    axis_angle = relative_rot.as_rotvec()
+    return axis_angle
+
+
 class DMPs(object):
     """Implementation of Dynamic Motor Primitives,
     as described in Dr. Stefan Schaal's (2002) paper."""
 
-    def __init__(self, n_dmps, n_bfs, dt=.01,
+    def __init__(self, n_dmps, n_bfs, dt=.02, #in order to have dt equal to teleoperation dt
                  y0=0, goal=1, w=None,
                  ay=None, by=None, **kwargs):
         """
@@ -31,12 +86,11 @@ class DMPs(object):
         self.n_bfs = n_bfs
         self.dt = dt
         self.aruco_pose = None
-        #self.aruco_pose_lock = Lock()
         if isinstance(y0, (int, float)):
-            y0 = np.ones(self.n_dmps)*y0
+            y0 = np.ones(self.n_dmps+1)*y0
         self.y0 = y0
         if isinstance(goal, (int, float)):
-            goal = np.ones(self.n_dmps)*goal
+            goal = np.ones(self.n_dmps+1)*goal
         self.goal = goal
         self.goal[-4:] = [0, 0, 0, 1]  # Initialize quaternions to identity
         if w is None:
@@ -44,9 +98,8 @@ class DMPs(object):
             w = np.zeros((self.n_dmps, self.n_bfs))
         self.w = w
 
-        self.ay = np.ones(n_dmps + 1) * 25. if ay is None else ay  # Schaal 2012
+        self.ay = np.ones(n_dmps) * 25. if ay is None else ay  # Schaal 2012
         self.by = self.ay / 4. if by is None else by  # Schaal 2012
-        self.x_old = 1
 
         # set up the CS
         self.cs = CanonicalSystem(dt=self.dt, **kwargs)
@@ -54,24 +107,15 @@ class DMPs(object):
 
         # set up the DMP system
         self.d0 = np.zeros(7)
-        #self.tau_dyn = 1.0
         self.reset_state()
-
         self.reset_state_dynamic()
-
+        
         # New variables
-        #self.tau_dyn = 1.0
-        self.d_de = np.zeros(7)
-        self.d_not_filtered_plot = []
-        self.d_filtered_plot = []
-        self.goal_vec = []
         self.Ct_vec = []
         self.Cs_vec = []
         self.vel_vec = []
-        #self.d_de = np.zeros(6)
-        
-        rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
 
+        rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
 
     def object_pose_callback(self, msg):
         """
@@ -92,7 +136,6 @@ class DMPs(object):
 
             '''
 
-
     def check_offset(self):
         """Check to see if initial position and goal are the same
         if they are, offset slightly so that the forcing term is not 0"""
@@ -110,22 +153,28 @@ class DMPs(object):
     def gen_psi(self):
         raise NotImplementedError()
 
+    def gen_weights(self, f_target):
+        raise NotImplementedError()
+
     # y_measured is the object pose taken from camera
     # y_dot is the current velocity 
     def gen_coupling_terms(self, y_measured, goal, tau, y_dot, d0):
         raise NotImplementedError()
     
-    def gen_weights(self, f_target):
-        raise NotImplementedError()
-
     def imitate_path(self, y_des):
+        """Takes in a desired trajectory and generates the set of
+        system parameters that best realize this path.
 
+        y_des list/array: the desired trajectories of each DMP
+                          should be shaped [n_dmps, run_time]
+        """
+        #There are some changes added by Christian in order to have normal interpolation!
         # set initial state and goal
         if y_des.ndim == 1:
             y_des = y_des.reshape(1, len(y_des))
-
         self.y0 = y_des[:, 0].copy()
         self.y_des = y_des.copy()
+        #self.goal = self.gen_goal(y_des)
         self.goal = y_des[:, -1].copy()
 
         self.check_offset()
@@ -135,7 +184,7 @@ class DMPs(object):
         from scipy.spatial.transform import Rotation as R
 
         # Initialize path array
-        path = np.zeros((self.n_dmps, self.timesteps))
+        path = np.zeros((self.n_dmps+1, self.timesteps))
 
         # Time points
         x_original = np.linspace(0, self.cs.run_time, y_des.shape[1])
@@ -148,31 +197,51 @@ class DMPs(object):
 
         # Handle rotational data (quaternions)
         quaternions = y_des[3:7].T 
+
+        # Interpolate quaternions (use spherical linear interpolation)
         interp_func = scipy.interpolate.interp1d(x_original, quaternions, axis=0, kind='linear', fill_value="extrapolate")
         interpolated_quaternions = interp_func(t_new)
-        path[3:self.n_dmps] = interpolated_quaternions.T
+
+        path[3:self.n_dmps+1] = interpolated_quaternions.T
 
         # Update y_des with the interpolated path
         y_des = path
 
-        # calculate velocity of y_des
-        dy_des = np.diff(y_des) / self.dt
-        # add zero to the beginning of every row
-        dy_des = np.hstack((np.zeros((self.n_dmps, 1)), dy_des))
-
-        # calculate acceleration of y_des
+        #computaion of velocities is now different for quaternions
+        dy_des = np.zeros((self.n_dmps, self.timesteps)) #velocities
+        dy_des[:,0] = 0.0 # add zero to the beginning of every row
+        for i in range(1,self.timesteps):
+            dy_des[0,i] = (y_des[0,i] - y_des[0,i-1])/self.dt
+            dy_des[1,i] = (y_des[1,i] - y_des[1,i-1])/self.dt
+            dy_des[2,i] = (y_des[2,i] - y_des[2,i-1])/self.dt
+            q2 = y_des[3:,i]
+            q1 = y_des[3:,i-1] 
+            dy_des[3:,i] = compute_quaternion_distance(q2,q1) / self.dt #no more multiplication with 2 (2*logq) 
+        
+        # calculate acceleration of y_des - same for all variables
         ddy_des = np.diff(dy_des) / self.dt
         # add zero to the beginning of every row
         ddy_des = np.hstack((np.zeros((self.n_dmps, 1)), ddy_des))
 
-        f_target = np.zeros((y_des.shape[1], self.n_dmps))
-
         # find the force required to move along this trajectory
+        f_target = np.zeros((y_des.shape[1], self.n_dmps))
+        #we need to precompute distances
+        distances = np.zeros((3,self.timesteps))
+        for i in range(self.timesteps):
+            q1 = y_des[3:,i]
+            q2 = self.goal[3:]
+            distances[:,i] = compute_quaternion_distance(q2,q1) #no more multiplication with 2 (2*logq)
+
         for d in range(self.n_dmps):
-            f_target[:, d] = (ddy_des[d] - self.ay[d] *
-                              (self.by[d] * (self.goal[d] - y_des[d]) -
-                              dy_des[d]))
-        
+            if d <= 2:
+                f_target[:, d] = (ddy_des[d] - self.ay[d] *
+                                (self.by[d] * (self.goal[d] - y_des[d]) -
+                                dy_des[d]))
+            #computation for quaternions -> all integrated
+            else: 
+                f_target[:,d] = (ddy_des[d] - self.ay[d] *
+                                (self.by[d] * distances[d-3] -
+                                dy_des[d]))
         # efficiently generate weights to realize f_target
         self.gen_weights(f_target)
 
@@ -197,8 +266,14 @@ class DMPs(object):
             else:
                 timesteps = self.timesteps
 
+        #change of ay and by parameters - GLISp optimiz of this param
+        if 'ay_glisp' in kwargs:
+            self.ay=np.ones(self.n_dmps) * kwargs['ay_glisp']
+        if 'by_glisp' in kwargs:
+            self.by=np.ones(self.n_dmps) * kwargs['by_glisp']
+        
         # set up tracking vectors
-        y_track = np.zeros((timesteps, self.n_dmps))
+        y_track = np.zeros((timesteps, self.n_dmps + 1))
         dy_track = np.zeros((timesteps, self.n_dmps))
         ddy_track = np.zeros((timesteps, self.n_dmps))
         for t in range(timesteps):
@@ -206,10 +281,11 @@ class DMPs(object):
             # run and record timestep (you are 'appending' values)
             y_track[t], dy_track[t], ddy_track[t] = self.step_original(**kwargs)
 
+            # At this point you can even think of publishing the current value...
+
         return y_track, dy_track, ddy_track
     
     def roll_generator(self, goal=None, y0=None, tau=1.0, **kwargs):
-    
         # Define the cartesian goal (dmp_link wrt base_link)
         if goal is not None:
             self.goal = goal
@@ -219,22 +295,22 @@ class DMPs(object):
             self.y0 = y0
         y = self.y0
 
-        # Iniitalize robot quaternions (dmp_link wrt base_link) 
-        #self.y = self.y0[-4:]
-
         # Reset the state 
         self.reset_state_dynamic()
-
+        iteration = 0
         while np.linalg.norm(y[:3] - self.goal[:3]) > 0.01:
-            print(f"The error is {np.linalg.norm(y[:3] - self.goal[:3])}")
-
-              
+            #print(f"The error is {np.linalg.norm(y[:3] - self.goal[:3])}")
+            #if we want to add also the condition on orientations
+            #q1 = self.y[3:]
+            #q2 = self.goal[3:] #q2 = pose[3:]
+            #distance = compute_quaternion_distance(q2,q1)
+            #distance_degrees = distance*180/np.pi
+            #print(f"The angle error in degrees is {np.linalg.norm(distance_degrees)}")
+            
             if self.aruco_pose is None:
                 rospy.logwarn("Aruco pose is not yet available, skipping step.")
                 rospy.sleep(self.dt)
                 continue
-            
-
             # Get the human pose (aruco marker) with respect to the base_link
             try:
                 
@@ -254,9 +330,26 @@ class DMPs(object):
                 rospy.sleep(self.dt)
                 continue
             
+
+            '''
+            #since I dont have camera I will assume fixed orientation(info about camera pose is not used now)
+            current_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+            r = R.from_euler('z', 90, degrees=True)
+            q = r.as_quat()
+            current_pose[3:] = q
+
+            if iteration > 35:
+                r1 = R.from_euler('x', -45, degrees=True)
+                new_rot = r1 * r
+                q1 = new_rot.as_quat()
+                angle = new_rot.as_rotvec()
+                print(f"The new angle in degrees is {angle*180/np.pi}")
+                current_pose[3:] = q1
+            '''
+            
             # Start timing
             start_time_step = time.time()
-
+            iteration = iteration+1
             # y, dy, ddy: pos, vel, acc of dmp_link wrt base_link
             y, dy, ddy = self.step(tau = tau, pose = current_pose, goal = self.goal, **kwargs)
             yield y, dy, ddy
@@ -274,16 +367,12 @@ class DMPs(object):
             csv_writer.writerow(self.vel_vec)
         '''
 
-        
-
     def reset_state(self):
         """Reset the system state"""
         self.y = self.y0.copy()
-        self.y_old = self.y.copy()
         self.dy = np.zeros(self.n_dmps)
         self.ddy = np.zeros(self.n_dmps)
         self.cs.reset_state()
-        self.x_old = 1
 
     def reset_state_dynamic(self):
         """Reset the system state for the dynamic dmps"""
@@ -293,88 +382,6 @@ class DMPs(object):
         self.cs.reset_state()
         self.tau_dyn = 1.0
 
-
-    def euler_to_quaternion(self, euler_angles):
-        r = R.from_euler('xyz', euler_angles, degrees=False)  # Convert from Euler to Quaternion
-        return r.as_quat()  # SciPy returns [x, y, z, w]
-
-    def quaternion_to_euler(self, q):
-        """
-        Convert quaternion to Euler angles (roll, pitch, yaw).
-        Input: 
-            q : array (4,) -> Quaternion [w, x, y, z]
-        Output:
-            euler : array (3,) -> [roll, pitch, yaw] in radians
-        """
-        print(f"The quaternion is: {q}")
-        q_mod = [q[0], q[1], q[2], q[3]]
-        r = R.from_quat(q_mod)  # Convert to [x, y, z, w] format
-        euler_angles = r.as_euler('xyz', degrees=False)  # Convert to radians
-        return euler_angles
-    
-    def compute_euler_velocity(self, euler, omega):
-
-        print(f"The euler angles are: {euler}")
-        print(f"omega is {omega}")
-        roll, pitch, yaw = euler
-        omega_xyz = omega[0:3]
-
-        # Transformation matrix T(phi, theta)
-        T = np.array([
-            [1, np.sin(roll) * np.tan(pitch), np.cos(roll) * np.tan(pitch)],
-            [0, np.cos(roll), -np.sin(roll)],
-            [0, np.sin(roll) / np.cos(pitch), np.cos(roll) / np.cos(pitch)]
-        ])
-
-        euler_velocity = np.dot(T, omega_xyz)  # Transform to Euler rate
-        return euler_velocity
-    
-    def quaternion_angular_velocity_to_euler(self, q, omega):
-        """
-        Convert angular velocity from quaternion representation to Euler angles.
-        Inputs:
-            q : array (4,) -> Quaternion [w, x, y, z]
-            omega : array (3,) -> Angular velocity [wx, wy, wz] in quaternion frame
-        Output:
-            euler_velocity : array (3,) -> [roll_rate, pitch_rate, yaw_rate]
-        """
-        euler = self.quaternion_to_euler(q)
-        roll, pitch, yaw = euler
-
-        # Transformation matrix from body angular velocity to Euler rate
-        T = np.array([
-            [1, np.sin(roll) * np.tan(pitch), np.cos(roll) * np.tan(pitch)],
-            [0, np.cos(roll), -np.sin(roll)],
-            [0, np.sin(roll) / np.cos(pitch), np.cos(roll) / np.cos(pitch)]
-        ])
-
-        euler_velocity = np.dot(T, omega)  # Convert to Euler rate
-        return euler_velocity
-
-    
-    def compute_euler_acceleration(self, euler, omega, omega_dot):
-        roll, pitch, yaw = euler
-        omega_xyz = omega[0:3]
-        omega_dot_xyz = omega_dot[0:3]
-
-        # Transformation matrix T(phi, theta)
-        T = np.array([
-            [1, np.sin(roll) * np.tan(pitch), np.cos(roll) * np.tan(pitch)],
-            [0, np.cos(roll), -np.sin(roll)],
-            [0, np.sin(roll) / np.cos(pitch), np.cos(roll) / np.cos(pitch)]
-        ])
-
-        # Compute time derivative of T(phi, theta)
-        T_dot = np.array([
-            [0, np.cos(roll) * np.tan(pitch) * omega_xyz[0] + np.sin(roll) / (np.cos(pitch)**2) * omega_xyz[1], -np.sin(roll) * np.tan(pitch) * omega_xyz[0] + np.cos(roll) / (np.cos(pitch)**2) * omega_xyz[1]],
-            [0, -np.sin(roll) * omega_xyz[0], -np.cos(roll) * omega_xyz[0]],
-            [0, (np.cos(roll) * omega_xyz[0] / np.cos(pitch)) + (np.sin(roll) * np.tan(pitch) * omega_xyz[1] / np.cos(pitch)), (-np.sin(roll) * omega_xyz[0] / np.cos(pitch)) + (np.cos(roll) * np.tan(pitch) * omega_xyz[1] / np.cos(pitch))]
-        ])
-
-        # Compute Euler acceleration
-        euler_acceleration = np.dot(T, omega_dot_xyz) + np.dot(T_dot, omega_xyz)
-        return euler_acceleration
-
     def step(self, tau=1.0, error=0.0, external_force=None, pose=None, goal=None):
         ''' 
         tau = tau0 defined with PBO
@@ -383,7 +390,7 @@ class DMPs(object):
         '''
         error_coupling = 1.0 / (1.0 + error)
 
-        Ct, Cs = self.gen_coupling_terms(pose, self.y)
+        Ct, Cs = self.gen_coupling_terms(pose, self.y,self.goal,self.dy)
 
         # Compute the new tau
         tau0 = tau
@@ -393,10 +400,18 @@ class DMPs(object):
         # compute phase and basis functions
         x = self.cs.step(tau=self.tau_dyn, error_coupling=error_coupling)
         psi = self.gen_psi(x)
+        print(f"The value of x is: {x}")
 
-        # Loop from d = 1 to d = 6
+        #precompute quaternion distance : diference betwwen current orientation and goal orientation
+        q1 = self.y[3:]
+        #if the goal orientation is fixed
+        #q2 = self.goal[3:] 
+        #if the goal orientation is changable
+        q2 = pose[3:]
+        distance = compute_quaternion_distance(q2,q1)
+        #print(f"The value of distance is: {distance*180/np.pi}")
+
         for d in range(self.n_dmps):
-          
             # Solve the equations
             f = (self.gen_front_term(x, d) *
                  (np.dot(psi, self.w[d])) / np.sum(psi))
@@ -410,52 +425,118 @@ class DMPs(object):
 
                 self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling
                 self.y[d] += self.dy[d] * self.dt * error_coupling
-            
             else:
-
-                # Equations in terms of quaternions (d = 3, 4, 5, 6)
+                # Equations in terms of quaternions (d = 3, 4, 5)
                 self.ddy[d] = (self.ay[d] *
-                            (self.by[d] * (pose[d] - self.y[d]) -
+                            (self.by[d] * distance[d-3] -
                             self.dy[d]/self.tau_dyn) + f + Cs[d]) * self.tau_dyn
+                #print(f"The value of f_target[d] is: {f}")
+                #print(f"The value of distances[d] is: {distance[d-3]}")
+                #print(f"The angle error in degrees is {np.linalg.norm(distance[d-3]*180/np.pi)}")
+                #total = self.by[d] * distance[d-3] - self.dy[d]/self.tau_dyn
+                #part_one = self.by[d] * distance[d-3]
+                part_two = - self.ay[d] * self.dy[d]/self.tau_dyn
+
+                print(f"The value of f_target[d] is: {f}")
+                #print(f"The value of total is: {total}")
+                #print(f"The value of part one is: {part_one}")
+                print(f"The value of part two is: {part_two}")
                 
                 if external_force is not None:
                     self.ddy[d] += external_force[d]
 
-                self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling
-                self.y[d] += self.dy[d] * self.dt * error_coupling
-
+                self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling #velocity computed same
+                
+        #I need to have all components of velocities in order to compute new quaternion orientation
+        #I need to compute rotation anlges in order to execute quaternion multiplication!
+        rot1 = R.from_rotvec(self.dt * error_coupling * self.dy[3:]) #no more multiplicat with 2
+        rot2 = R.from_quat([self.y[3], self.y[4], self.y[5], self.y[6]])
+        new_rot = rot1 * rot2
+        y_angles = new_rot.as_rotvec()
+        self.y[3:] = new_rot.as_quat()
+        print(f"The angle values of y are: {y_angles*180/np.pi}")
         # 7x1 vectors representing the trajectories of dmp_link wrt base_link
-        return self.y, self.dy, self.ddy
-
+        #print(f"The value of y is: {self.y}")
+        #print(f"The value of y_d is: {self.dy}")
+        #print(f"The value of y_dd is: {self.ddy}")
+        return self.y, self.dy, self.ddy    
     
-    def step_original(self, tau=None, error=0.0, external_force=None, pose=None):
 
+    def step_original(self, tau=1.0, error=0.0, external_force=None, goal=None):
+        ''' 
+        tau = tau0 defined with PBO
+        pose = human hand wrt base_link (pose[-4:] is the dynamic goal)
+        goal: final x, y, z coordinates of dmp_link wrt base_link
+        '''
         error_coupling = 1.0 / (1.0 + error)
-        x = self.cs.step(tau=tau, error_coupling=error_coupling)
 
-        # generate basis function activation
+        #Ct, Cs = self.gen_coupling_terms(pose, self.y,self.goal,self.dy)
+
+        # Compute the new tau
+        #tau0 = tau
+        #self.tau_dyn = tau0 * (1 - Ct)
+        #print(f"The value of tau_dyn is: {self.tau_dyn}")
+
+        # compute phase and basis functions
+        x = self.cs.step(tau=tau, error_coupling=error_coupling)
         psi = self.gen_psi(x)
+        print(f"The value of x is: {x}")
+
+        #precompute quaternion distance : diference betwwen current orientation and goal orientation
+        q1 = self.y[3:]
+        #if the goal orientation is fixed
+        #q2 = self.goal[3:] 
+        #if the goal orientation is changable
+        q2 = self.goal[3:]
+        distance = compute_quaternion_distance(q2,q1)
+        #print(f"The value of distance is: {distance*180/np.pi}")
 
         for d in range(self.n_dmps):
+            # Solve the equations
+            f = (self.gen_front_term_original(x, d) *
+                 (np.dot(psi, self.w[d])) / np.sum(psi))
+            if d <= 2:
+                self.ddy[d] = (self.ay[d] *
+                            (self.by[d] * (self.goal[d] - self.y[d]) -
+                            self.dy[d]/self.tau_dyn) + f) * tau
+                
+                if external_force is not None:
+                    self.ddy[d] += external_force[d]
 
-            # Here some modifications could be done to
-            # Account for coupling terms based on the distance...
+                self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling
+                self.y[d] += self.dy[d] * self.dt * error_coupling
+            else:
+                # Equations in terms of quaternions (d = 3, 4, 5)
+                self.ddy[d] = (self.ay[d] *
+                            (self.by[d] * distance[d-3] -
+                            self.dy[d]/tau) + f) * tau
+                #print(f"The value of f_target[d] is: {f}")
+                #print(f"The value of distances[d] is: {distance[d-3]}")
+                #print(f"The angle error in degrees is {np.linalg.norm(distance[d-3]*180/np.pi)}")
+                #total = self.by[d] * distance[d-3] - self.dy[d]/self.tau_dyn
+                #part_one = self.by[d] * distance[d-3]
+                #part_two = - self.dy[d]/self.tau_dyn
 
-            # generate the forcing term
-            f = (self.gen_front_term(x, d) *
-                (np.dot(psi, self.w[d])) / np.sum(psi))
-            print(f"The value of the forcing term f is: {f}")
+                #print(f"The value of f_target[d] is: {f}")
+                #print(f"The value of total is: {total}")
+                #print(f"The value of part one is: {part_one}")
+                #print(f"The value of part two is: {part_two}")
+                
+                if external_force is not None:
+                    self.ddy[d] += external_force[d]
 
-            # DMP acceleration
-            self.ddy[d] = (self.ay[d] *
-                        (self.by[d] * (self.goal[d] - self.y[d]) -
-                        self.dy[d]/tau) + f) * tau
-            if external_force is not None:
-                self.ddy[d] += external_force[d]
-
-            # Compute velocity and position
-            self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling
-            self.y[d] += self.dy[d] * self.dt * error_coupling
-
-
+                self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling #velocity computed same
+                
+        #I need to have all components of velocities in order to compute new quaternion orientation
+        #I need to compute rotation anlges in order to execute quaternion multiplication!
+        rot1 = R.from_rotvec(self.dt * error_coupling * self.dy[3:]) #no more multiplicat with 2
+        rot2 = R.from_quat([self.y[3], self.y[4], self.y[5], self.y[6]])
+        new_rot = rot1 * rot2
+        y_angles = new_rot.as_rotvec()
+        self.y[3:] = new_rot.as_quat()
+        #print(f"The angle values of y are: {y_angles*180/np.pi}")
+        # 7x1 vectors representing the trajectories of dmp_link wrt base_link
+        #print(f"The value of y is: {self.y}")
+        #print(f"The value of y_d is: {self.dy}")
+        #print(f"The value of y_dd is: {self.ddy}")
         return self.y, self.dy, self.ddy
