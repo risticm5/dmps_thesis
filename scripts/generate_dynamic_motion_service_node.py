@@ -8,7 +8,9 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, Pose
 import tf
 import time
+from interface_vision_utils.msg import ObjectPose
 
+#Dynamic dmps - Christian
 class GenerateMotionClass:
     def __init__(self):
         """ROS action server for generating motion using DMPs."""
@@ -20,6 +22,7 @@ class GenerateMotionClass:
         self.trajectory_pub = rospy.Publisher('~cartesian_trajectory', CartesianTrajectory, queue_size=1)
         self.path_pub = rospy.Publisher('~cartesian_path', PoseStamped, queue_size=1)
 
+        #parameters
         self.verbose = True
 
     def generate_motion(self, req):
@@ -27,6 +30,8 @@ class GenerateMotionClass:
         rospy.loginfo("Received motion generation request")
 
         # Extract initial and goal poses
+        #for euler dmps
+        """
         rpy_initial = tf.transformations.euler_from_quaternion([
             req.initial_pose.pose.orientation.x, req.initial_pose.pose.orientation.y,
             req.initial_pose.pose.orientation.z, req.initial_pose.pose.orientation.w
@@ -44,41 +49,48 @@ class GenerateMotionClass:
             req.goal_pose.pose.position.x, req.goal_pose.pose.position.y, req.goal_pose.pose.position.z,
             rpy_goal[0], rpy_goal[1], rpy_goal[2]
         ])
+        """
+        #for quaternion dmps
+        initial_pose = np.array([
+            req.initial_pose.pose.position.x, req.initial_pose.pose.position.y, req.initial_pose.pose.position.z,
+            req.initial_pose.pose.orientation.x, req.initial_pose.pose.orientation.y, req.initial_pose.pose.orientation.z, req.initial_pose.pose.orientation.w
+        ])
 
-        if self.verbose:
-            rospy.loginfo(f"The initial pose is {initial_pose}")
-            rospy.loginfo(f"The initial orientation in quaternion is {req.initial_pose.pose.orientation}")
-            rospy.loginfo(f"The goal pose is {goal_pose}")
-            rospy.loginfo(f"The final orientation in quaternion is {req.goal_pose.pose.orientation}")
+        goal_pose = np.array([
+            req.goal_pose.pose.position.x, req.goal_pose.pose.position.y, req.goal_pose.pose.position.z,
+            req.goal_pose.pose.orientation.x, req.goal_pose.pose.orientation.y, req.goal_pose.pose.orientation.z, req.goal_pose.pose.orientation.w
+        ])
 
+        # Create an object of class RollDmp (defined in the file 'roll_dmp.py')
         dmp = RollDmp(req.dmp_name, req.dt)
 
-        rospy.loginfo("Publishing points in real-time...")
-
-        # Calculate the total time and expected interval per step
-        total_time = 1.0 / req.tau
-        num_points = int(dmp.dmp.timesteps / req.tau)  # Access timesteps from the DMPs_discrete instance
-        interval = total_time / num_points  # Time interval per point
-
         # Record the start time for synchronization
+        interval = req.dt
         start_time = time.time()
 
         # Initialize point counter
         point_counter = 0
 
-        # Iterate over the generator and publish one point at a time
-        for pos, vel, acc in dmp.roll_generator(goal_pose, initial_pose, req.tau):
+        # Iterate over the generator and publish one point at a time, as soon as available
+        for pos, _, _ in dmp.roll_generator(goal_pose, initial_pose, req.tau):
             # Build pose and state messages
             pose = Pose()
             pose.position.x, pose.position.y, pose.position.z = pos[:3]
+            #for euler dmps
+            """
             x, y, z, w = tf.transformations.quaternion_from_euler(*pos[3:])
             pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = x, y, z, w
+            """
+            #for quaternion dmps
+            pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = pos[-4:]
 
             pose_pub = PoseStamped()
             pose_pub.header.stamp = rospy.Time.now()
             pose_pub.pose = pose
             pose_pub.header.frame_id = "dmp_ref"
 
+            '''
+            #Publishing also the info about vel and acc(they sholud be included in for loop call)
             cartesian_state = CartesianState()
             cartesian_state.pose = pose
             cartesian_state.vel.linear.x, cartesian_state.vel.linear.y, cartesian_state.vel.linear.z = vel[:3]
@@ -91,6 +103,7 @@ class GenerateMotionClass:
             cartesian_trajectory.header.frame_id = "dmp_ref"
             cartesian_trajectory.cartesian_state.append(cartesian_state)
             self.trajectory_pub.publish(cartesian_trajectory)
+            '''
 
             # Publish the path for visualization
             path = Path()
@@ -98,7 +111,6 @@ class GenerateMotionClass:
             pose_stamped = PoseStamped()
             pose_stamped.pose = pose
             path.poses.append(pose_stamped)
-            #self.path_pub.publish(path)
             self.path_pub.publish(pose_pub)
 
             # Log the currently published positions
@@ -126,7 +138,7 @@ class GenerateMotionClass:
         # Prepare the response
         response = GenerateMotionResponse()
         response.result = "success"
-        response.cart_traj = cartesian_trajectory  # Only contains the last state
+        #response.cart_traj = cartesian_trajectory  # Only contains the last state
         return response
 
 

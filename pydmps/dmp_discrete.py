@@ -22,7 +22,59 @@ Modifications are made such that the software can be easily integrated in ROS.
 
 from pydmps.dmp import DMPs
 import numpy as np
+import rospy
+from interface_vision_utils.msg import ObjectPose
+import tf
+from scipy.spatial.transform import Rotation as R
+import tf
+import math
 
+#Compute axis-angle rotation representation from quaternion (logarithmic map)
+def qLog(q):
+    # Ensure the quaternion is normalized
+    norm_q = np.linalg.norm(q)
+    if norm_q == 0:
+        return R.from_quat([0, 0, 0, 1])
+    q = q / norm_q
+    # Convert quaternion to a rotation object
+    rot = R.from_quat(q) # the right order of quat: qx,qy,qz,qw for scipy verson 1.10.1 that I use
+    # Get the axis-angle representation (angle and axis) with :axis_angle = rot.as_rotvec(), if you need
+    return rot
+
+#Compute quaternion from axis-angle representation (exponential map)
+def vecExp(axis_angle):
+    # Create a rotation object from axis-angle
+    rot = R.from_rotvec(axis_angle)
+    # Convert to quaternion
+    q = rot.as_quat()  # Returns [x, y, z, w]
+    return q
+
+# Computes quaternion gradient
+def compute_velocity_optimized(q1, q0, dt):
+    # Normalize the quaternions
+    q1 = q1 / np.linalg.norm(q1)
+    q0 = q0 / np.linalg.norm(q0)
+    # Convert quaternions to Rotation objects
+    rot1 = R.from_quat(q1)
+    rot0 = R.from_quat(q0)
+    # Compute the relative rotation: q1 * q0^-1
+    relative_rot = rot1 * rot0.inv()  # Quaternion multiplication and inversion
+    # Get the axis-angle representation (rotation vector)
+    axis_angle = relative_rot.as_rotvec()
+    # Compute the velocities: 2 * axis_angle / dt
+    velocities = 2 * axis_angle / dt
+    return velocities
+
+def compute_quaternion_distance(q2,q1):
+    #computes rotational angles, that represent distance between quaternions q2 and q1
+
+    # Compute axis-angle representations of quat
+    rot1 = qLog(q1) #this will be rotation angles
+    rot2 = qLog(q2)
+    # Compute the relative rotation: q2 * q1^-1
+    relative_rot = rot2 * rot1.inv() 
+    axis_angle = relative_rot.as_rotvec()
+    return axis_angle
 
 class DMPs_discrete(DMPs):
     """An implementation of discrete DMPs"""
@@ -40,6 +92,9 @@ class DMPs_discrete(DMPs):
         # trial and error to find this spacing
         self.h = np.ones(self.n_bfs) * self.n_bfs**1.5 / self.c / self.cs.ax
         self.check_offset()
+
+        # Initialize the listener
+        self.tf_listener = tf.TransformListener()
 
     def gen_centers(self):
         """Set the centre of the Gaussian basis
@@ -69,7 +124,16 @@ class DMPs_discrete(DMPs):
         x float: the current value of the canonical system
         dmp_num int: the index of the current dmp
         """
-        return x * (self.goal[dmp_num] - self.y0[dmp_num])
+        q1 = self.y0[3:]
+        q2 = self.goal[3:] #if scale factor is fixed
+        #if scale factor changes 
+        changable_goal = np.array([0.0,0.0,0.0,1.0])
+        q2=changable_goal
+        distance = compute_quaternion_distance(q2,q1) #initial angular distance
+        if dmp_num <=2:
+            return x * (self.goal[dmp_num] - self.y0[dmp_num])
+        else:
+            return x * distance[dmp_num - 3]
 
     def gen_goal(self, y_des):
         """Generate the goal for path imitation.
@@ -105,15 +169,60 @@ class DMPs_discrete(DMPs):
 
         # efficiently calculate BF weights using weighted linear regression
         self.w = np.zeros((self.n_dmps, self.n_bfs))
+        q1 = self.y0[3:]
+        q2 = self.goal[3:]
+        distance = compute_quaternion_distance(q2,q1) #initial angular distance
         for d in range(self.n_dmps):
             # spatial scaling term
-            k = (self.goal[d] - self.y0[d])
+            if d<=2:
+                k = (self.goal[d] - self.y0[d])
+            else:
+                # spatial scaling term -now should be computed differently for quaternions
+                k = distance[d-3]   
+            #print(f"spatial scaling term: {k}")
             for b in range(self.n_bfs):
                 numer = np.sum(x_track * psi_track[:, b] * f_target[:, d])
                 denom = np.sum(x_track**2 * psi_track[:, b])
                 self.w[d, b] = numer / (k * denom)
         self.w = np.nan_to_num(self.w)
         
+    def gen_coupling_terms(self, y_h, y_r, goal, dy_r):
+        
+        # Parameters for sigmoidal for distance and Ct
+        a_d = -10
+        delta_d = 0.35
+        kt = 0
+        
+
+        # Get the robot pose
+        #self.tf_listener.waitForTransform("base_link", "dmp_link", rospy.Time(), rospy.Duration(1.0))
+        #(trans, _) = self.tf_listener.lookupTransform("base_link", "dmp_link", rospy.Time(0))
+        q_r = y_r[-4:] # robot quaternion (dmp_link wrt base_link)
+        q_h = y_h[-4:] # human quaternion (aruco wrt base_link)
+
+        #distance_pose = np.linalg.norm(y_h[:3] - trans)
+        # Compute Ct
+        #sigma_d = 1 / (1 + np.exp(a_d * (distance_pose - delta_d)))
+        #Ct = kt * sigma_d
+        Ct = kt
+
+        # Initialize Cs
+        Cs = np.zeros(6) #n_dmps=6
+        ks = 0
+        ax = 25.0
+        a_d = -10
+        delta_d = 0.35 #now this represent mean for distance in rad
+
+        velocities = dy_r[3:]
+
+        # Compute Cs
+        distance_angles = compute_quaternion_distance(q_h,q_r) #distance in rad
+        distance_orientation = np.linalg.norm(distance_angles)
+        sigma_do = 1 / (1 + np.exp(a_d * (distance_orientation - delta_d)))
+        Cs[3:] = ax * self.tau_dyn * ks * velocities * sigma_do 
+        print(f"spatial copling term Cs is: {Cs}")
+        return Ct, Cs
+    
 
 # ==============================
 # Test code

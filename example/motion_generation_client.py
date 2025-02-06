@@ -20,15 +20,17 @@ if __name__ == "__main__":
     #dt= float(input_dt)
     #req.tau = tau
     #req.dt = dt
-    req.tau = 0.2
+    req.tau = 0.1
     req.dt = 0.05
     #We can also add parameters ay and by to GLISp algorithm
-    input_ay = input("Please enter value for ay: ")
-    ay= float(input_ay)
-    input_by = input("Please enter value for by: ")
-    by= float(input_by)
-    req.ay = ay
-    req.by = by
+    #input_ay = input("Please enter value for ay: ")
+    #ay= float(input_ay)
+    #input_by = input("Please enter value for by: ")
+    #by= float(input_by)
+    #req.ay = ay
+    #req.by = by
+    req.ay = 25.0
+    req.by = 6.25
 
     """
     # Compose request message - Marko -ramp trajectory
@@ -59,7 +61,7 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.append(script_dir)
     file_path = os.path.join(script_dir, "../reference_trajectory.csv")
-
+    #file_path = os.path.join(script_dir, "../reference_trajectory_old.csv")
     with open(file_path, 'r') as csvfile:
         reader = csv.reader(csvfile)
         next(reader)  # Skip the header row

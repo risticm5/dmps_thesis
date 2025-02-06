@@ -66,8 +66,10 @@ class LearnDmp:
         req: service request msg
         '''
         rospy.loginfo("Recieved request to learn a motion primitive")
-        trajectory = np.zeros((6, len(req.poses)))
         rospy.loginfo("Learning motion primitive " + req.dmp_name)
+        #for euler dmps
+        """
+        trajectory = np.zeros((6, len(req.poses)))
         for i in range(len(req.poses)):
             # Make sure that the quaternion represents the smaller axis-angle rotation
             qx, qy, qz, qw = ensure_smaller_axis_angle(req.poses[i].orientation.x,
@@ -81,6 +83,19 @@ class LearnDmp:
                                                             qw])
             trajectory[:, i] = [req.poses[i].position.x, req.poses[i].position.y,
                                 req.poses[i].position.z, rpy[0], rpy[1], rpy[2]]
+        """
+        #for quaternion dmps
+        trajectory = np.zeros((7, len(req.poses)))
+        for i in range(len(req.poses)):
+                        # Make sure that the quaternion represents the smaller axis-angle rotation
+            qx, qy, qz, qw = ensure_smaller_axis_angle(req.poses[i].orientation.x,
+                                                       req.poses[i].orientation.y,
+                                                       req.poses[i].orientation.z,
+                                                       req.poses[i].orientation.w)
+            # Trajectory is a 7xN matrix
+            trajectory[:, i] = [req.poses[i].position.x, req.poses[i].position.y,
+                                req.poses[i].position.z, qx, qy, qz, qw]
+
         self.learn_dmp(trajectory, req.output_weight_file_name, req.n_dmps, req.n_bfs)
         rospy.loginfo("Successfully learned the motion primitive")
         # Return response
@@ -88,7 +103,7 @@ class LearnDmp:
         response.result = self.result
         return response
 
-    def learn_dmp(self, trajectory, file_name, n_dmps=6, n_bfs=50):
+    def learn_dmp(self, trajectory, file_name, n_dmps=6, n_bfs=50): #for quat dmps n_dmps=6, for euler dmps n_dmps=6
         """This function learns dmp weights and stores them in desired file
 
         trajectory: Matrix containing trajectory
@@ -100,21 +115,31 @@ class LearnDmp:
         demonstrated_trajectory = trajectory.copy()
         demonstrated_goal_pose = demonstrated_trajectory[:, -1]
         demonstrated_initial_pose = demonstrated_trajectory[:, 0]
-
+        
+        #print(trajectory)
         # Removing bias from the data. (Start position is zero now)
-        trajectory -= trajectory[:, 0][:, None]
-
+        #trajectory -= trajectory[:, 0][:, None]
+        #Not good anymore for quaternions
+        
         # Initiating DMP
         self.dmp = pydmps.dmp_discrete.DMPs_discrete(n_dmps=n_dmps, n_bfs=n_bfs, ay=None)
 
         # Learn weights
         weights = self.dmp.imitate_path(y_des=trajectory)
 
-        #save weights to desired file
+        #save weights to desired file - euler dmps
+        """
         data = {'x': np.asarray(weights[0, :]).tolist(), 'y': np.asarray(weights[1, :]).tolist(),
                 'z': np.asarray(weights[2, :]).tolist(), 'roll': np.asarray(weights[3, :]).tolist(),
                 'pitch': np.asarray(weights[4, :]).tolist(),
                 'yaw': np.asarray(weights[5, :]).tolist()}
+        """
+        #save weights to desired file - quaternion dmps
+        data = {'x': np.asarray(weights[0, :]).tolist(), 'y': np.asarray(weights[1, :]).tolist(),
+                'z': np.asarray(weights[2, :]).tolist(), 'rx': np.asarray(weights[3, :]).tolist(),
+                'ry': np.asarray(weights[4, :]).tolist(),
+                'rz': np.asarray(weights[5, :]).tolist()}
+        
         file = join(self.weights_file_path, file_name)
         try:
             with open(file, "a+") as f:
@@ -124,7 +149,8 @@ class LearnDmp:
             rospy.logerr("Cannot save weight file. Check if the directory of the weight file exists. Related parameter can be found in launch file.")
             self.result = "failed"
 
-        # Imitate the same path as demonstrated
+        """
+        #Imitate the same path as demonstrated - Euler dmps
         pos, vel, acc = self.dmp.rollout(goal=demonstrated_goal_pose, y0=demonstrated_initial_pose)
 
         # Publish Imitated Path
@@ -146,10 +172,12 @@ class LearnDmp:
             pose_stamped.pose.orientation.w = qw
             imitated_path.poses.append(pose_stamped)
         self.imitated_path_pub.publish(imitated_path)
-
-        # Publish Demonstrated Path
+        """
+        # Publish Demonstrated Path - euler dmps
+        """
         demonstrated_path = Path()
-        demonstrated_path.header.frame_id = "/base_link"
+        #demonstrated_path.header.frame_id = "/base_link"
+        demonstrated_path.header.frame_id = "dmp_ref"
         for itr in range(demonstrated_trajectory.shape[1]):
             pose_stamped = PoseStamped()
             pose_stamped.pose.position.x = demonstrated_trajectory[0, itr]
@@ -160,6 +188,23 @@ class LearnDmp:
             pose_stamped.pose.orientation.y = y1
             pose_stamped.pose.orientation.z = z1
             pose_stamped.pose.orientation.w = w1
+            demonstrated_path.poses.append(pose_stamped)
+        self.demonstrated_path_pub.publish(demonstrated_path)
+        """
+        # Publish Demonstrated Path - quaternion dmps
+        demonstrated_path = Path()
+        #demonstrated_path.header.frame_id = "/base_link"
+        demonstrated_path.header.frame_id = "dmp_ref"
+        for itr in range(demonstrated_trajectory.shape[1]):
+            pose_stamped = PoseStamped()
+            pose_stamped.pose.position.x = demonstrated_trajectory[0, itr]
+            pose_stamped.pose.position.y = demonstrated_trajectory[1, itr]
+            pose_stamped.pose.position.z = demonstrated_trajectory[2, itr]
+            #x1, y1, z1, w1 = tf.transformations.quaternion_from_euler(demonstrated_trajectory[3, itr], demonstrated_trajectory[4, itr], demonstrated_trajectory[5, itr])
+            pose_stamped.pose.orientation.x = demonstrated_trajectory[3, itr]
+            pose_stamped.pose.orientation.y = demonstrated_trajectory[4, itr]
+            pose_stamped.pose.orientation.z = demonstrated_trajectory[5, itr]
+            pose_stamped.pose.orientation.w = demonstrated_trajectory[6, itr]
             demonstrated_path.poses.append(pose_stamped)
         self.demonstrated_path_pub.publish(demonstrated_path)
 

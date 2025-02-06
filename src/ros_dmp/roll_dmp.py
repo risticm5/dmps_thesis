@@ -2,6 +2,7 @@ import numpy as np
 import yaml
 import os.path
 import pydmps
+import rospy
 
 class RollDmp():
 
@@ -56,6 +57,8 @@ class RollDmp():
 
         file_name: Path of the weight file
         '''
+        #for Euler DMPs
+        """
         with open(file_name) as f:
             loadeddict = yaml.safe_load(f)
         x = loadeddict.get('x')
@@ -71,6 +74,24 @@ class RollDmp():
         weights = np.vstack((weights, np.array(roll)))
         weights = np.vstack((weights, np.array(pitch)))
         weights = np.vstack((weights, np.array(yaw)))
+        """
+
+        #for Quaternion DMPs
+        with open(file_name) as f:
+            loadeddict = yaml.safe_load(f)
+        x = loadeddict.get('x')
+        y = loadeddict.get('y')
+        z = loadeddict.get('z')
+        rx = loadeddict.get('rx')
+        ry = loadeddict.get('ry')
+        rz = loadeddict.get('rz')
+
+        weights = np.array(x)
+        weights = np.vstack((weights, np.array(y)))
+        weights = np.vstack((weights, np.array(z)))
+        weights = np.vstack((weights, np.array(rx)))
+        weights = np.vstack((weights, np.array(ry)))
+        weights = np.vstack((weights, np.array(rz)))
 
         return weights
 

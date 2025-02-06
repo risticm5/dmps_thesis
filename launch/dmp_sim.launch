@@ -3,5 +3,5 @@
  <!-- Publish base_link transfrom to support visualization of the trajectories -->
  <!-- node pkg="tf" type="static_transform_publisher" name="base_link_transform" args="0.0 0.0 0.0 0.0 0.0 0.0 odom base_link 50"/> -->
  <node pkg="tf" type="static_transform_publisher" name="dmp_ref_transform" args="0.0 0.0 0.0 0.0 0.0 0.0 dmp_ref odom 50"/>
- <include file="$(find ros_dmp)/launch/dmp_static.launch"/>
+ <include file="$(find ros_dmp)/launch/dmp_dynamic.launch"/>
 </launch>
