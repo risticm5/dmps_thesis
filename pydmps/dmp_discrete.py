@@ -117,7 +117,7 @@ class DMPs_discrete(DMPs):
             # finding x for desired times t
             self.c[n] = np.exp(-self.cs.ax * des_c[n])
 
-    def gen_front_term(self, x, dmp_num):
+    def gen_front_term(self, x, dmp_num, pose):
         """Generates the diminishing front term on
         the forcing term.
 
@@ -127,8 +127,9 @@ class DMPs_discrete(DMPs):
         q1 = self.y0[3:]
         q2 = self.goal[3:] #if scale factor is fixed
         #if scale factor changes 
-        changable_goal = np.array([0.0,0.0,0.0,1.0])
-        q2=changable_goal
+        #changable_goal = np.array([0.0,0.0,0.0,1.0])
+        changeable_goal = pose
+        q2=changeable_goal
         distance = compute_quaternion_distance(q2,q1) #initial angular distance
         if dmp_num <=2:
             return x * (self.goal[dmp_num] - self.y0[dmp_num])
@@ -209,7 +210,7 @@ class DMPs_discrete(DMPs):
         # Parameters for sigmoidal for distance and Ct
         a_d = -10
         delta_d = 0.35
-        kt = 0.5 # NOTE: k must range from 0 to 1
+        kt = 0.0 # NOTE: k must range from 0 to 1
         
 
         # Get the robot pose
@@ -226,7 +227,7 @@ class DMPs_discrete(DMPs):
 
         # Initialize Cs
         Cs = np.zeros(6) #n_dmps=6
-        ks = 0.5
+        ks = 0.0
         ay = 25.0
         a_d = -10
         delta_d = 0.35 #now this represent mean for distance in rad

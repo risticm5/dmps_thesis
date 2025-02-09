@@ -31,11 +31,15 @@ class RollDmp():
         #Normal execution - without GLISp optimiz of ay and by
         self.pos, self.vel, self.acc = self.dmp.rollout(goal=goal, y0=initial_pos, tau=tau)
         #GLISp execution - wit GLISp optimiz of ay and by
+
+        '''
         if 'ay' in kwargs and 'by' in kwargs:
             ay_glisp=kwargs['ay']
             by_glisp=kwargs['by']
             self.pos, self.vel, self.acc = self.dmp.rollout(goal=goal, y0=initial_pos, tau=tau, ay_glisp=ay_glisp, by_glisp=by_glisp)
+        '''
         return self.pos, self.vel, self.acc
+
 
     def roll_generator(self, goal, initial_pos, tau):
         """

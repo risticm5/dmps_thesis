@@ -92,7 +92,7 @@ class DMPs(object):
         if isinstance(goal, (int, float)):
             goal = np.ones(self.n_dmps+1)*goal
         self.goal = goal
-        self.goal[-4:] = [0, 0, 0, 1]  # Initialize quaternions to identity
+        #self.goal[-4:] = [0, 0, 0, 1]  # Initialize quaternions to identity
         if w is None:
             # default is f = 0
             w = np.zeros((self.n_dmps, self.n_bfs))
@@ -267,10 +267,12 @@ class DMPs(object):
                 timesteps = self.timesteps
 
         #change of ay and by parameters - GLISp optimiz of this param
+        '''
         if 'ay_glisp' in kwargs:
             self.ay=np.ones(self.n_dmps) * kwargs['ay_glisp']
         if 'by_glisp' in kwargs:
             self.by=np.ones(self.n_dmps) * kwargs['by_glisp']
+        '''
         
         # set up tracking vectors
         y_track = np.zeros((timesteps, self.n_dmps + 1))
@@ -307,6 +309,7 @@ class DMPs(object):
             #distance_degrees = distance*180/np.pi
             #print(f"The angle error in degrees is {np.linalg.norm(distance_degrees)}")
             
+            '''
             if self.aruco_pose is None:
                 rospy.logwarn("Aruco pose is not yet available, skipping step.")
                 rospy.sleep(self.dt)
@@ -329,11 +332,18 @@ class DMPs(object):
                 rospy.logwarn("Incomplete Aruco pose data, skipping step.")
                 rospy.sleep(self.dt)
                 continue
+            '''
+                
+            
+                
+            
             
 
-            '''
+            
             #since I dont have camera I will assume fixed orientation(info about camera pose is not used now)
-            current_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+            current_pose = np.array([0.0, 0.0, 0.0, 0.49780278645538634, -0.5205946938151316, -0.5117137489328473, 0.4683188974639753])
+            
+            
             r = R.from_euler('z', 90, degrees=True)
             q = r.as_quat()
             current_pose[3:] = q
@@ -345,7 +355,10 @@ class DMPs(object):
                 angle = new_rot.as_rotvec()
                 print(f"The new angle in degrees is {angle*180/np.pi}")
                 current_pose[3:] = q1
-            '''
+
+            
+            
+            
             
             # Start timing
             start_time_step = time.time()
@@ -383,46 +396,39 @@ class DMPs(object):
         self.tau_dyn = 1.0
 
     def step(self, tau=1.0, error=0.0, external_force=None, pose=None, goal=None):
-        ''' 
+        '''
         tau = tau0 defined with PBO
         pose = human hand wrt base_link (pose[-4:] is the dynamic goal)
         goal: final x, y, z coordinates of dmp_link wrt base_link
         '''
         error_coupling = 1.0 / (1.0 + error)
-
         Ct, Cs = self.gen_coupling_terms(pose, self.y,self.goal,self.dy)
-
         # Compute the new tau
         tau0 = tau
         self.tau_dyn = tau0 * (1 - Ct)
         print(f"The value of tau_dyn is: {self.tau_dyn}")
-
         # compute phase and basis functions
         x = self.cs.step(tau=self.tau_dyn, error_coupling=error_coupling)
         psi = self.gen_psi(x)
         print(f"The value of x is: {x}")
-
         #precompute quaternion distance : diference betwwen current orientation and goal orientation
         q1 = self.y[3:]
         #if the goal orientation is fixed
-        #q2 = self.goal[3:] 
+        q2 = self.goal[3:]
         #if the goal orientation is changable
-        q2 = pose[3:]
+        #q2 = pose[3:]
         distance = compute_quaternion_distance(q2,q1)
-        #print(f"The value of distance is: {distance*180/np.pi}")
-
+        #print(f”The value of distance is: {distance*180/np.pi}“)
         for d in range(self.n_dmps):
             # Solve the equations
-            f = (self.gen_front_term(x, d) *
+            f = (self.gen_front_term(x, d, q2) *
                  (np.dot(psi, self.w[d])) / np.sum(psi))
             if d <= 2:
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * (self.goal[d] - self.y[d]) -
                             self.dy[d]/self.tau_dyn) + f  + Cs[d]) * self.tau_dyn
-                
                 if external_force is not None:
                     self.ddy[d] += external_force[d]
-
                 self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling
                 self.y[d] += self.dy[d] * self.dt * error_coupling
             else:
@@ -430,23 +436,19 @@ class DMPs(object):
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * distance[d-3] -
                             self.dy[d]/self.tau_dyn) + f + Cs[d]) * self.tau_dyn
-                #print(f"The value of f_target[d] is: {f}")
-                #print(f"The value of distances[d] is: {distance[d-3]}")
-                #print(f"The angle error in degrees is {np.linalg.norm(distance[d-3]*180/np.pi)}")
-                #total = self.by[d] * distance[d-3] - self.dy[d]/self.tau_dyn
-                #part_one = self.by[d] * distance[d-3]
-                part_two = - self.ay[d] * self.dy[d]/self.tau_dyn
-
-                print(f"The value of f_target[d] is: {f}")
-                #print(f"The value of total is: {total}")
-                #print(f"The value of part one is: {part_one}")
-                print(f"The value of part two is: {part_two}")
-                
+                #print(f”The value of f_target[d] is: {f}“)
+                #print(f”The value of distances[d] is: {distance[d-3]}“)
+                #print(f”The angle error in degrees is {np.linalg.norm(distance[d-3]*180/np.pi)}“)
+                total = self.by[d] * distance[d-3] - self.dy[d]/self.tau_dyn
+                part_one = self.by[d] * distance[d-3]
+                part_two = - self.dy[d]/self.tau_dyn
+                #print(f”The value of f_target[d] is: {f}“)
+                #print(f”The value of total is: {total}“)
+                #print(f”The value of part one is: {part_one}“)
+                #print(f”The value of part two is: {part_two}“)
                 if external_force is not None:
                     self.ddy[d] += external_force[d]
-
                 self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling #velocity computed same
-                
         #I need to have all components of velocities in order to compute new quaternion orientation
         #I need to compute rotation anlges in order to execute quaternion multiplication!
         rot1 = R.from_rotvec(self.dt * error_coupling * self.dy[3:]) #no more multiplicat with 2
@@ -456,10 +458,10 @@ class DMPs(object):
         self.y[3:] = new_rot.as_quat()
         print(f"The angle values of y are: {y_angles*180/np.pi}")
         # 7x1 vectors representing the trajectories of dmp_link wrt base_link
-        #print(f"The value of y is: {self.y}")
-        #print(f"The value of y_d is: {self.dy}")
-        #print(f"The value of y_dd is: {self.ddy}")
-        return self.y, self.dy, self.ddy    
+        #print(f”The value of y is: {self.y}“)
+        #print(f”The value of y_d is: {self.dy}“)
+        #print(f”The value of y_dd is: {self.ddy}“)
+        return self.y, self.dy, self.ddy   
     
 
     def step_original(self, tau=1.0, error=0.0, external_force=None, goal=None):
@@ -498,7 +500,7 @@ class DMPs(object):
             if d <= 2:
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * (self.goal[d] - self.y[d]) -
-                            self.dy[d]/self.tau_dyn) + f) * tau
+                            self.dy[d]/tau) + f) * tau
                 
                 if external_force is not None:
                     self.ddy[d] += external_force[d]

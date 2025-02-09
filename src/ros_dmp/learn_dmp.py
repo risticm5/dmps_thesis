@@ -145,6 +145,7 @@ class LearnDmp:
             with open(file, "w") as f:
                 yaml.dump(data, f)
             self.result = "success"
+            print(f"The directory is {file}")
         except:
             rospy.logerr("Cannot save weight file. Check if the directory of the weight file exists. Related parameter can be found in launch file.")
             self.result = "failed"
