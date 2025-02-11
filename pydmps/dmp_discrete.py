@@ -227,7 +227,7 @@ class DMPs_discrete(DMPs):
 
         # Initialize Cs
         Cs = np.zeros(6) #n_dmps=6
-        ks = 0.0
+        ks = 0.8
         ay = 25.0
         a_d = -10
         delta_d = 0.35 #now this represent mean for distance in rad

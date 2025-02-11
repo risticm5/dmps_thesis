@@ -309,7 +309,7 @@ class DMPs(object):
             #distance_degrees = distance*180/np.pi
             #print(f"The angle error in degrees is {np.linalg.norm(distance_degrees)}")
             
-            '''
+            
             if self.aruco_pose is None:
                 rospy.logwarn("Aruco pose is not yet available, skipping step.")
                 rospy.sleep(self.dt)
@@ -332,7 +332,7 @@ class DMPs(object):
                 rospy.logwarn("Incomplete Aruco pose data, skipping step.")
                 rospy.sleep(self.dt)
                 continue
-            '''
+            
                 
             
                 
@@ -341,9 +341,10 @@ class DMPs(object):
 
             
             #since I dont have camera I will assume fixed orientation(info about camera pose is not used now)
-            current_pose = np.array([0.0, 0.0, 0.0, 0.49780278645538634, -0.5205946938151316, -0.5117137489328473, 0.4683188974639753])
-            
-            
+            #current_pose = np.array([0.0, 0.0, 0.0, 0.49780278645538634, -0.5205946938151316, -0.5117137489328473, 0.4683188974639753])
+            #current_pose = self.goal
+            #current_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+            '''
             r = R.from_euler('z', 90, degrees=True)
             q = r.as_quat()
             current_pose[3:] = q
@@ -355,6 +356,7 @@ class DMPs(object):
                 angle = new_rot.as_rotvec()
                 print(f"The new angle in degrees is {angle*180/np.pi}")
                 current_pose[3:] = q1
+            '''
 
             
             
@@ -414,9 +416,9 @@ class DMPs(object):
         #precompute quaternion distance : diference betwwen current orientation and goal orientation
         q1 = self.y[3:]
         #if the goal orientation is fixed
-        q2 = self.goal[3:]
+        #q2 = self.goal[3:]
         #if the goal orientation is changable
-        #q2 = pose[3:]
+        q2 = pose[3:]
         distance = compute_quaternion_distance(q2,q1)
         #print(f”The value of distance is: {distance*180/np.pi}“)
         for d in range(self.n_dmps):
@@ -426,29 +428,29 @@ class DMPs(object):
             if d <= 2:
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * (self.goal[d] - self.y[d]) -
-                            self.dy[d]/self.tau_dyn) + f  + Cs[d]) * self.tau_dyn
+                            self.dy[d]/self.tau_dyn) + f  + Cs[d]) * (self.tau_dyn ** 2)
                 if external_force is not None:
                     self.ddy[d] += external_force[d]
-                self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling
+                self.dy[d] += self.ddy[d] * self.dt * error_coupling
                 self.y[d] += self.dy[d] * self.dt * error_coupling
             else:
                 # Equations in terms of quaternions (d = 3, 4, 5)
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * distance[d-3] -
-                            self.dy[d]/self.tau_dyn) + f + Cs[d]) * self.tau_dyn
+                            self.dy[d]/self.tau_dyn) + f + Cs[d]) * (self.tau_dyn ** 2)
                 #print(f”The value of f_target[d] is: {f}“)
                 #print(f”The value of distances[d] is: {distance[d-3]}“)
                 #print(f”The angle error in degrees is {np.linalg.norm(distance[d-3]*180/np.pi)}“)
-                total = self.by[d] * distance[d-3] - self.dy[d]/self.tau_dyn
-                part_one = self.by[d] * distance[d-3]
-                part_two = - self.dy[d]/self.tau_dyn
+                #total = self.by[d] * distance[d-3] - self.dy[d]/self.tau_dyn
+                #part_one = self.by[d] * distance[d-3]
+                #part_two = - self.dy[d]/self.tau_dyn
                 #print(f”The value of f_target[d] is: {f}“)
                 #print(f”The value of total is: {total}“)
                 #print(f”The value of part one is: {part_one}“)
                 #print(f”The value of part two is: {part_two}“)
                 if external_force is not None:
                     self.ddy[d] += external_force[d]
-                self.dy[d] += self.ddy[d] * self.tau_dyn * self.dt * error_coupling #velocity computed same
+                self.dy[d] += self.ddy[d] * self.dt * error_coupling #velocity computed same
         #I need to have all components of velocities in order to compute new quaternion orientation
         #I need to compute rotation anlges in order to execute quaternion multiplication!
         rot1 = R.from_rotvec(self.dt * error_coupling * self.dy[3:]) #no more multiplicat with 2
@@ -500,18 +502,18 @@ class DMPs(object):
             if d <= 2:
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * (self.goal[d] - self.y[d]) -
-                            self.dy[d]/tau) + f) * tau
+                            self.dy[d]/tau) + f) * (tau ** 2)
                 
                 if external_force is not None:
                     self.ddy[d] += external_force[d]
 
-                self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling
+                self.dy[d] += self.ddy[d] * self.dt * error_coupling
                 self.y[d] += self.dy[d] * self.dt * error_coupling
             else:
                 # Equations in terms of quaternions (d = 3, 4, 5)
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * distance[d-3] -
-                            self.dy[d]/tau) + f) * tau
+                            self.dy[d]/tau) + f) * (tau ** 2)
                 #print(f"The value of f_target[d] is: {f}")
                 #print(f"The value of distances[d] is: {distance[d-3]}")
                 #print(f"The angle error in degrees is {np.linalg.norm(distance[d-3]*180/np.pi)}")
@@ -527,7 +529,7 @@ class DMPs(object):
                 if external_force is not None:
                     self.ddy[d] += external_force[d]
 
-                self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling #velocity computed same
+                self.dy[d] += self.ddy[d] * self.dt * error_coupling #velocity computed same
                 
         #I need to have all components of velocities in order to compute new quaternion orientation
         #I need to compute rotation anlges in order to execute quaternion multiplication!
