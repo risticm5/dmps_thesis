@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # Read the file for the trajectory
     script_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.append(script_dir)
-    file_path = os.path.join(script_dir, "../reference_trajectory.csv")
+    file_path = os.path.join(script_dir, "../reference_trajectory_line.csv")
 
     with open(file_path, 'r') as csvfile:
         reader = csv.reader(csvfile)

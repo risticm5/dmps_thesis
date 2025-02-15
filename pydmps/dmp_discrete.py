@@ -96,6 +96,8 @@ class DMPs_discrete(DMPs):
         # Initialize the listener
         self.tf_listener = tf.TransformListener()
 
+        self.dist_vec = []
+
     def gen_centers(self):
         """Set the centre of the Gaussian basis
         functions be spaced evenly throughout run time"""
@@ -125,7 +127,7 @@ class DMPs_discrete(DMPs):
         dmp_num int: the index of the current dmp
         """
         q1 = self.y0[3:]
-        q2 = self.goal[3:] #if scale factor is fixed
+        #q2 = self.goal[3:] #if scale factor is fixed
         #if scale factor changes 
         #changable_goal = np.array([0.0,0.0,0.0,1.0])
         changeable_goal = pose
@@ -208,7 +210,7 @@ class DMPs_discrete(DMPs):
     def gen_coupling_terms(self, y_h, y_r, goal, dy_r):
         
         # Parameters for sigmoidal for distance and Ct
-        a_d = -10
+        a_d = -50
         delta_d = 0.35
         kt = 0.0 # NOTE: k must range from 0 to 1
         
@@ -219,7 +221,14 @@ class DMPs_discrete(DMPs):
         q_r = y_r[-4:] # robot quaternion (dmp_link wrt base_link)
         q_h = y_h[-4:] # human quaternion (aruco wrt base_link)
 
+        #print(f"The robot quaternion in euler angles is: {R.from_quat(q_r).as_euler('xyz', degrees=True)}")
+        #print(f"The human quaternion in euler angles is: {R.from_quat(q_h).as_euler('xyz', degrees=True)}")
+        #print(f"The robot quaternion in rotation vectors is: {R.from_quat(q_r).as_rotvec()*180/np.pi}")
+        #print(f"The human quaternion in rotation vectors is: {R.from_quat(q_h).as_rotvec()*180/np.pi}")
+
         distance_pose = np.linalg.norm(y_h[:3] - y_r[:3])
+        print(f"The distance in spatial coordinates is: {distance_pose}")
+        self.dist_vec.append(distance_pose)
         # Compute Ct
         sigma_d = 1 / (1 + np.exp(a_d * (distance_pose - delta_d)))
         Ct = kt * sigma_d
@@ -227,7 +236,7 @@ class DMPs_discrete(DMPs):
 
         # Initialize Cs
         Cs = np.zeros(6) #n_dmps=6
-        ks = 0.8
+        ks = 0.0 # Vary this in between 0 and 1
         ay = 25.0
         a_d = -10
         delta_d = 0.35 #now this represent mean for distance in rad
@@ -235,12 +244,73 @@ class DMPs_discrete(DMPs):
         velocities = dy_r[3:]
 
         # Compute Cs
-        distance_angles = compute_quaternion_distance(q_h,q_r) #distance in rad
+        distance_angles = compute_quaternion_distance(q_h, q_r) #distance in rad
+        print(f"The distance in rotation vectors is: {distance_angles}")
+        print(f"The distance in degrees is: {distance_angles * 180 / np.pi}")
         distance_orientation = np.linalg.norm(distance_angles)
+        print(f"The single parameter representing the rotation is {distance_orientation * 180 / np.pi}")  # Magnitude in degrees
+        print(f"The singler param in radians is: {distance_orientation}")
         sigma_do = 1 / (1 + np.exp(a_d * (distance_orientation - delta_d)))
+        print(f"The value of sigma_do is: {sigma_do}")
+        print(f"THE VALUE OF TAUDYN IS: {self.tau_dyn}")
         Cs[3:] = ay * ks * velocities * sigma_do / self.tau_dyn 
         print(f"spatial copling term Cs is: {Cs}")
-        return Ct, Cs
+
+        # Define the fixed reference frame rotation in absolute terms
+        rx = R.from_euler('x', 90, degrees=True)
+        ry = R.from_euler('y', -90, degrees=True)
+        fixed_ref_matrix = (rx * ry)  # Fixed frame rotation matrix
+
+        # Convert human quaternion to rotation matrix
+        human_rot_matrix = R.from_quat(q_h)
+
+        # Compute the relative rotation: Human w.r.t Fixed frame
+        relative_human_rotation = fixed_ref_matrix.inv() * human_rot_matrix
+        # relative_human_rotation = human_rot_matrix.inv() * fixed_ref_matrix
+
+        # Convert the relative rotation to a rotation vector
+        distance_rotv = relative_human_rotation.as_rotvec()
+
+        # Debugging: Print results
+        print(f"The distance in rotation vectors is: {distance_rotv}")
+        print(f"Distance scaling is: {distance_rotv * 180 / np.pi}")  # Convert to degrees
+        print(f"The single parameter representing the rotation is {np.linalg.norm(distance_rotv) * 180 / np.pi}")  # Magnitude in degrees
+
+                
+        # Computation of Cm
+        Cm = np.zeros(6)
+        km = 1.0 # The smallest value is 1.0 (no amplification effect)
+        by = ay / 4
+        a_dm = -3
+        delta_dm = 0.7 # 0.35 rad = 20 degrees; 0.7 rad = 40 degrees; 10 degrees = 0.17 rad
+        theta = np.linalg.norm(distance_rotv)
+        sigma_dm = 1 / (1 + np.exp(a_dm * (theta - delta_dm))) # Value ranging from 0 to 1
+        print(f"The value of sigma_dm is: {sigma_dm}")
+        print(f"The amplification factor is: {km * sigma_dm}")
+        #Cm[3:] = ay * by * km * sigma_dm * (distance_rotv / np.linalg.norm(distance_rotv))
+        #Cm[3:] = km * sigma_dm * distance_rotv
+        #Cm[3:] = km * distance_rotv
+        #Cm[4] *= km # Amplify only the y component
+        print(f"The complete amplification term Cm is: {Cm}")
+
+        relative_human_rotvec = relative_human_rotation.as_rotvec()
+        amplified_rotvec = km * relative_human_rotvec
+        print(f"The rleative rotations in terms of rotation angles is: {relative_human_rotvec}")
+        print(f"The y component of the relative rotation is: {relative_human_rotvec[1]}")
+        #amplified_rotvec[1] *= km # Amplify the rotation around y-axis
+        amplified_human_rotation = R.from_rotvec(amplified_rotvec) # Realtive one
+        print(f"The amplified relative rotation in terms of euler angles is: {amplified_human_rotation.as_euler('xyz', degrees=True)}")
+        amplified_goal_rotation = fixed_ref_matrix * amplified_human_rotation
+        y_h_star = amplified_goal_rotation.as_quat()
+
+        print(f"THE human rotation in terms of euler angles is: {R.from_quat(y_h_star).as_euler('xyz', degrees=True)}")
+
+
+
+
+        
+    
+        return Ct, Cs, Cm, y_h_star, self.dist_vec
     
 
 # ==============================

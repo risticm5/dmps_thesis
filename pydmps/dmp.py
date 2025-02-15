@@ -26,6 +26,7 @@ from interface_vision_utils.msg import ObjectPose
 import time
 import os
 import csv
+import tf
 from scipy.spatial.transform import Rotation as R
 
 
@@ -114,6 +115,7 @@ class DMPs(object):
         self.Ct_vec = []
         self.Cs_vec = []
         self.vel_vec = []
+        self.tau_vec = []
 
         rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
 
@@ -309,7 +311,7 @@ class DMPs(object):
             #distance_degrees = distance*180/np.pi
             #print(f"The angle error in degrees is {np.linalg.norm(distance_degrees)}")
             
-            
+            '''
             if self.aruco_pose is None:
                 rospy.logwarn("Aruco pose is not yet available, skipping step.")
                 rospy.sleep(self.dt)
@@ -332,16 +334,47 @@ class DMPs(object):
                 rospy.logwarn("Incomplete Aruco pose data, skipping step.")
                 rospy.sleep(self.dt)
                 continue
+            '''
             
-                
-            
-                
-            
-            
+                          
+            # 'Simulation' block
+            br = tf.TransformBroadcaster()
+            '''
+            # Simulate only changes in orientation
+            if iteration < 200:
+                # Oriented as the fixed reference
+                current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+            elif iteration >= 200 and iteration < 400:
+                # Rotated 20 degrees around the 'y' axis and 30 around the 'z' axis
+                current_pose = np.array([0.4, 0.7, 0.47, 0.45451948, -0.54167522, -0.24184476, 0.66446302])  
+            elif iteration >= 400 and iteration < 600: 
+                # Rotated of -20 around y and 0 around z
+                current_pose = np.array([0.4, 0.7, 0.47, 0.40557979, -0.57922797, -0.57922797,  0.40557979]) 
+            else:
+                # Back to the original orientation
+                current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+            '''
 
-            
-            #since I dont have camera I will assume fixed orientation(info about camera pose is not used now)
-            #current_pose = np.array([0.0, 0.0, 0.0, 0.49780278645538634, -0.5205946938151316, -0.5117137489328473, 0.4683188974639753])
+            # Simulate only changes in position
+            if iteration < 200:
+                # Start close to the robot
+                current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+            elif iteration >= 200 and iteration < 400:
+                # Oriented as the fixed reference
+                current_pose = np.array([0.4, 1.2, 0.47, 0.5, -0.5, -0.5, 0.5])
+            else:
+                current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+
+            print(f"The current pose in euler angles is: {R.from_quat(current_pose[3:]).as_rotvec()*180/np.pi}")
+            position_tf = current_pose[:3]  # (x, y, z)
+            quaternion_tf = current_pose[3:]  # (qx, qy, qz, qw)
+            br.sendTransform(
+                (position_tf[0], position_tf[1], position_tf[2]),  # Translation
+                (quaternion_tf[0], quaternion_tf[1], quaternion_tf[2], quaternion_tf[3]),  # Quaternion
+                rospy.Time.now(),
+                "proxy_hand",  # New frame (child)
+                "base_link"  # Parent frame
+            )
             #current_pose = self.goal
             #current_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
             '''
@@ -364,12 +397,14 @@ class DMPs(object):
             
             # Start timing
             start_time_step = time.time()
-            iteration = iteration+1
+            iteration = iteration + 1
             # y, dy, ddy: pos, vel, acc of dmp_link wrt base_link
-            y, dy, ddy = self.step(tau = tau, pose = current_pose, goal = self.goal, **kwargs)
+            y, dy, ddy, dist_vec = self.step(tau = tau, pose = current_pose, goal = self.goal, **kwargs)
             yield y, dy, ddy
 
         # The while loop is over: saving time!
+        print(f"The vector of distances is: {dist_vec}")
+        print(f"The vector of tau is: {self.tau_vec}")
         '''
         script_dir = os.path.dirname(os.path.realpath(__file__))
         file_path = os.path.join(script_dir, "distance.csv")  # File path in the script's directory
@@ -404,10 +439,11 @@ class DMPs(object):
         goal: final x, y, z coordinates of dmp_link wrt base_link
         '''
         error_coupling = 1.0 / (1.0 + error)
-        Ct, Cs = self.gen_coupling_terms(pose, self.y,self.goal,self.dy)
+        Ct, Cs, Cm, y_h_star, dist_vec = self.gen_coupling_terms(pose, self.y, self.goal, self.dy)
         # Compute the new tau
         tau0 = tau
         self.tau_dyn = tau0 * (1 - Ct)
+        self.tau_vec.append(self.tau_dyn)
         print(f"The value of tau_dyn is: {self.tau_dyn}")
         # compute phase and basis functions
         x = self.cs.step(tau=self.tau_dyn, error_coupling=error_coupling)
@@ -419,13 +455,37 @@ class DMPs(object):
         #q2 = self.goal[3:]
         #if the goal orientation is changable
         q2 = pose[3:]
-        distance = compute_quaternion_distance(q2,q1)
+        #q2 = y_h_star
+        print(f"The value of q2 in euler angles is: {R.from_quat(y_h_star).as_euler('xyz', degrees=True)}")
+
+        # Convert to euler angles
+        #angles = R.from_quat(q2).as_rotvec()
+        #print(f"The angles before the scaling (euler) are: {angles*180/np.pi}")
+        #angles = angles * km
+        #print(f"The angles after the scaling (euler) are: {angles*180/np.pi}")
+
+        # Back to quaternions
+        #q2 = R.from_rotvec(angles).as_quat()
+
+
+        
         #print(f”The value of distance is: {distance*180/np.pi}“)
+        #goal_rot = R.from_quat(q2)  # Convert goal rotation vector to rotation matrix
+        #cm_rot = R.from_rotvec(Cm[3:])          # Convert Cm rotation vector to rotation matrix
+
+        #new_goal_rot = cm_rot * goal_rot  # Correct composition (Cm applied first, then goal)
+        #q2 = new_goal_rot.as_rotvec()
+        #q2 = new_goal_rot.as_quat()
+        distance = compute_quaternion_distance(y_h_star, q1)
+        print(f"The distance computed with method 1 is: {distance*180/np.pi}")
+        print(f"The distnace computed with method 2 is: {compute_quaternion_distance(q2, q1) * 180 / np.pi}")
         for d in range(self.n_dmps):
             # Solve the equations
-            f = (self.gen_front_term(x, d, q2) *
+            f = (self.gen_front_term(x, d, y_h_star) *
                  (np.dot(psi, self.w[d])) / np.sum(psi))
             if d <= 2:
+                print(f"THE VALUE OF THE VELOCITY IS: {self.ay[d] * self.dy[d]/self.tau_dyn}")
+                print(f"THE VALUE OF Cs IS: {Cs[d]}")
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * (self.goal[d] - self.y[d]) -
                             self.dy[d]/self.tau_dyn) + f  + Cs[d]) * (self.tau_dyn ** 2)
@@ -435,6 +495,8 @@ class DMPs(object):
                 self.y[d] += self.dy[d] * self.dt * error_coupling
             else:
                 # Equations in terms of quaternions (d = 3, 4, 5)
+                print(f"THE VALUE OF THE VELOCITY IS: {self.dy[d]/self.tau_dyn}")
+                print(f"THE VALUE OF Cs IS: {Cs[d]}")
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * distance[d-3] -
                             self.dy[d]/self.tau_dyn) + f + Cs[d]) * (self.tau_dyn ** 2)
@@ -453,17 +515,18 @@ class DMPs(object):
                 self.dy[d] += self.ddy[d] * self.dt * error_coupling #velocity computed same
         #I need to have all components of velocities in order to compute new quaternion orientation
         #I need to compute rotation anlges in order to execute quaternion multiplication!
+
         rot1 = R.from_rotvec(self.dt * error_coupling * self.dy[3:]) #no more multiplicat with 2
         rot2 = R.from_quat([self.y[3], self.y[4], self.y[5], self.y[6]])
+        final_rotvec = np.sum(self.dy[3:] * self.dt * error_coupling, axis=0)  # Sum over iterations
+        print(f"Expected Total Rotation Change (deg): {final_rotvec * 180 / np.pi}")
         new_rot = rot1 * rot2
         y_angles = new_rot.as_rotvec()
         self.y[3:] = new_rot.as_quat()
+
         print(f"The angle values of y are: {y_angles*180/np.pi}")
-        # 7x1 vectors representing the trajectories of dmp_link wrt base_link
-        #print(f”The value of y is: {self.y}“)
-        #print(f”The value of y_d is: {self.dy}“)
-        #print(f”The value of y_dd is: {self.ddy}“)
-        return self.y, self.dy, self.ddy   
+
+        return self.y, self.dy, self.ddy, dist_vec
     
 
     def step_original(self, tau=1.0, error=0.0, external_force=None, goal=None):

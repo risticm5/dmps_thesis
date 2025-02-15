@@ -39,7 +39,7 @@ if __name__ == "__main__":
     # Compose service request
     req.header.frame_id = 'dmp_ref'
     req.output_weight_file_name = 'MyWeights.yaml'
-    req.dmp_name = 'reference_trajectory'
+    req.dmp_name = 'reference_trajectory_line'
     req.header.stamp = rospy.Time.now()
     req.n_bfs = rospy.get_param("/n_radial_basis")
     req.n_dmps = rospy.get_param("/n_dmps")
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Read trajectory data from CSV file
     script_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.append(script_dir)
-    file_path = os.path.join(script_dir, "../reference_trajectory.csv")
+    file_path = os.path.join(script_dir, "../reference_trajectory_line.csv")
     
     # Initialize the poses
     poses = []

@@ -22,7 +22,7 @@ class OculusPoseLogger:
         # Open the CSV file
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         sys.path.append(self.script_dir)
-        self.file_path = os.path.join(self.script_dir, "../reference_trajectory.csv")
+        self.file_path = os.path.join(self.script_dir, "../reference_trajectory_random.csv")
 
         # Open the file and keep it open for the lifetime of the object
         self.csv_file = open(self.file_path, mode="w", newline="")
