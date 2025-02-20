@@ -13,17 +13,19 @@ if __name__ == "__main__":
     req = GenerateMotionRequest()
 
     # Compose request message
-    req.dmp_name = "/home/christian/projects/merlin_ws/src/dmps_thesis/MyWeights.yaml"
+    req.dmp_name = "/home/christian/projects/merlin_ws/src/dmps_thesis/MyWeights_c_shape.yaml"
     #req.dmp_name = "example.yaml"
     #req.tau = 0.1
     req.tau = rospy.get_param("/tau")
     req.dt = rospy.get_param("/dt")
+    #req.tau = 0.1
+    #req.dt = 0.02
     rospy.loginfo(f"Using tau: {req.tau} and dt: {req.dt}")
 
     # Read the file for the trajectory
     script_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.append(script_dir)
-    file_path = os.path.join(script_dir, "../reference_trajectory_line.csv")
+    file_path = os.path.join(script_dir, "../reference_trajectory_c_shape.csv")
 
     with open(file_path, 'r') as csvfile:
         reader = csv.reader(csvfile)

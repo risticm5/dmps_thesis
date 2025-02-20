@@ -1,0 +1,4 @@
+Candidate: Christian
+role: 'expert' in robotics
+gender: male
+result: success

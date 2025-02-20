@@ -1,0 +1,4 @@
+Candidate: Eleonora
+role: 'expert' in robotics
+gender: female
+result:

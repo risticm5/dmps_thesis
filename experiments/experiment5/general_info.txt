@@ -1,0 +1,4 @@
+Candidate: Marko
+role: 'expert' in robotics
+gender: male
+result:success

@@ -116,6 +116,24 @@ class DMPs(object):
         self.Cs_vec = []
         self.vel_vec = []
         self.tau_vec = []
+        self.full_pose = []
+
+        # Dfine vectors for each dof
+        self.x_pose_full = []
+        self.y_pose_full = []
+        self.z_pose_full = []
+        self.qx_pose_full = []
+        self.qy_pose_full = []
+        self.qz_pose_full = []
+        self.qw_pose_full = []
+
+        # Variables controlling the pose
+        self.camera_pose = True # Use data from the camera
+        self.fake_pose = False # Use fake data
+
+        # Robot behaviour
+        self.follow_trajectory = True
+        self.follow_operator = False
 
         rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
 
@@ -128,15 +146,6 @@ class DMPs(object):
             is_tracked = msg.isTracked[i]
             self.aruco_pose = msg.pose[i]
 
-            '''
-            if is_tracked:
-                rospy.loginfo(f"Object: {name}")
-                rospy.loginfo(f"  Position: x={pose.translation.x}, y={pose.translation.y}, z={pose.translation.z}")
-                rospy.loginfo(f"  Orientation: x={pose.rotation.x}, y={pose.rotation.y}, z={pose.rotation.z}, w={pose.rotation.w}")
-            else:
-                rospy.logwarn(f"Object: {name} is not tracked.")
-
-            '''
 
     def check_offset(self):
         """Check to see if initial position and goal are the same
@@ -164,14 +173,7 @@ class DMPs(object):
         raise NotImplementedError()
     
     def imitate_path(self, y_des):
-        """Takes in a desired trajectory and generates the set of
-        system parameters that best realize this path.
 
-        y_des list/array: the desired trajectories of each DMP
-                          should be shaped [n_dmps, run_time]
-        """
-        #There are some changes added by Christian in order to have normal interpolation!
-        # set initial state and goal
         if y_des.ndim == 1:
             y_des = y_des.reshape(1, len(y_des))
         self.y0 = y_des[:, 0].copy()
@@ -267,15 +269,7 @@ class DMPs(object):
                 timesteps = int(self.timesteps / kwargs['tau'])
             else:
                 timesteps = self.timesteps
-
-        #change of ay and by parameters - GLISp optimiz of this param
-        '''
-        if 'ay_glisp' in kwargs:
-            self.ay=np.ones(self.n_dmps) * kwargs['ay_glisp']
-        if 'by_glisp' in kwargs:
-            self.by=np.ones(self.n_dmps) * kwargs['by_glisp']
-        '''
-        
+      
         # set up tracking vectors
         y_track = np.zeros((timesteps, self.n_dmps + 1))
         dy_track = np.zeros((timesteps, self.n_dmps))
@@ -303,119 +297,143 @@ class DMPs(object):
         self.reset_state_dynamic()
         iteration = 0
         while np.linalg.norm(y[:3] - self.goal[:3]) > 0.01:
-            #print(f"The error is {np.linalg.norm(y[:3] - self.goal[:3])}")
-            #if we want to add also the condition on orientations
-            #q1 = self.y[3:]
-            #q2 = self.goal[3:] #q2 = pose[3:]
-            #distance = compute_quaternion_distance(q2,q1)
-            #distance_degrees = distance*180/np.pi
-            #print(f"The angle error in degrees is {np.linalg.norm(distance_degrees)}")
-            
-            '''
-            if self.aruco_pose is None:
-                rospy.logwarn("Aruco pose is not yet available, skipping step.")
-                rospy.sleep(self.dt)
-                continue
-            # Get the human pose (aruco marker) with respect to the base_link
-            try:
+
+            if self.camera_pose:       
+                if self.aruco_pose is None:
+                    rospy.logwarn("Aruco pose is not yet available, skipping step.")
+                    rospy.sleep(self.dt)
+                    continue
+                # Get the human pose (aruco marker) with respect to the base_link
+                try:
+                    
+                    current_pose = np.array([
+                        self.aruco_pose.translation.x,
+                        self.aruco_pose.translation.y,
+                        self.aruco_pose.translation.z,
+                        self.aruco_pose.rotation.x,
+                        self.aruco_pose.rotation.y,
+                        self.aruco_pose.rotation.z,
+                        self.aruco_pose.rotation.w,
+                    ])
+
+                    self.x_pose_full.append(current_pose[0])
+                    self.y_pose_full.append(current_pose[1])
+                    self.z_pose_full.append(current_pose[2])
+                    self.qx_pose_full.append(current_pose[3])
+                    self.qy_pose_full.append(current_pose[4])
+                    self.qz_pose_full.append(current_pose[5])
+                    self.qw_pose_full.append(current_pose[6])
+                    
+                    #current_pose = np.array([0, 0, 0, 0, 0, 0, 1])
+                except AttributeError:
+                    rospy.logwarn("Incomplete Aruco pose data, skipping step.")
+                    rospy.sleep(self.dt)
+                    continue
+
+            elif self.fake_pose:
+
+                # Fixed rotation
+                br = tf.TransformBroadcaster()
+                if iteration < 400:
+                    # Oriented as the fixed reference
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+                else:
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.57922797, -0.40557979, -0.40557979,  0.57922797])
+                position_tf = current_pose[:3]  # (x, y, z)
+                quaternion_tf = current_pose[3:]  # (qx, qy, qz, qw)
+                br.sendTransform(
+                    (position_tf[0], position_tf[1], position_tf[2]),  # Translation
+                    (quaternion_tf[0], quaternion_tf[1], quaternion_tf[2], quaternion_tf[3]),  # Quaternion
+                    rospy.Time.now(),
+                    "proxy_hand",  # New frame (child)
+                    "base_link"  # Parent frame
+                )
+
+                '''                   
+                # Simulate only changes in orientation
+                br = tf.TransformBroadcaster()
+                if iteration < 200:
+                    # Oriented as the fixed reference
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+                elif iteration >= 200 and iteration < 400:
+                    # Rotated 20 degrees around the 'y' axis and 30 around the 'z' axis
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.45451948, -0.54167522, -0.24184476, 0.66446302])  
+                elif iteration >= 400 and iteration < 600: 
+                    # Rotated of -20 around y and 0 around z
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.40557979, -0.57922797, -0.57922797,  0.40557979]) 
+                else:
+                    # Back to the original orientation
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+
+                #print(f"The current pose in euler angles is: {R.from_quat(current_pose[3:]).as_rotvec()*180/np.pi}")
+                position_tf = current_pose[:3]  # (x, y, z)
+                quaternion_tf = current_pose[3:]  # (qx, qy, qz, qw)
+                br.sendTransform(
+                    (position_tf[0], position_tf[1], position_tf[2]),  # Translation
+                    (quaternion_tf[0], quaternion_tf[1], quaternion_tf[2], quaternion_tf[3]),  # Quaternion
+                    rospy.Time.now(),
+                    "proxy_hand",  # New frame (child)
+                    "base_link"  # Parent frame
+                )
+                '''
                 
-                current_pose = np.array([
-                    self.aruco_pose.translation.x,
-                    self.aruco_pose.translation.y,
-                    self.aruco_pose.translation.z,
-                    self.aruco_pose.rotation.x,
-                    self.aruco_pose.rotation.y,
-                    self.aruco_pose.rotation.z,
-                    self.aruco_pose.rotation.w,
-                ])
-                
-                #current_pose = np.array([0, 0, 0, 0, 0, 0, 1])
-            except AttributeError:
-                rospy.logwarn("Incomplete Aruco pose data, skipping step.")
-                rospy.sleep(self.dt)
-                continue
-            '''
-            
-                          
-            # 'Simulation' block
-            br = tf.TransformBroadcaster()
-            '''
-            # Simulate only changes in orientation
-            if iteration < 200:
-                # Oriented as the fixed reference
-                current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
-            elif iteration >= 200 and iteration < 400:
-                # Rotated 20 degrees around the 'y' axis and 30 around the 'z' axis
-                current_pose = np.array([0.4, 0.7, 0.47, 0.45451948, -0.54167522, -0.24184476, 0.66446302])  
-            elif iteration >= 400 and iteration < 600: 
-                # Rotated of -20 around y and 0 around z
-                current_pose = np.array([0.4, 0.7, 0.47, 0.40557979, -0.57922797, -0.57922797,  0.40557979]) 
+
+                '''
+                # Simulate only changes in position
+                br = tf.TransformBroadcaster()
+                if iteration < 200:
+                    # Start close to the robot
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+                elif iteration >= 200 and iteration < 400:
+                    # Oriented as the fixed reference
+                    current_pose = np.array([0.4, 1.2, 0.47, 0.5, -0.5, -0.5, 0.5])
+                else:
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+
+                print(f"The current pose in euler angles is: {R.from_quat(current_pose[3:]).as_rotvec()*180/np.pi}")
+                position_tf = current_pose[:3]  # (x, y, z)
+                quaternion_tf = current_pose[3:]  # (qx, qy, qz, qw)
+                br.sendTransform(
+                    (position_tf[0], position_tf[1], position_tf[2]),  # Translation
+                    (quaternion_tf[0], quaternion_tf[1], quaternion_tf[2], quaternion_tf[3]),  # Quaternion
+                    rospy.Time.now(),
+                    "proxy_hand",  # New frame (child)
+                    "base_link"  # Parent frame
+                )
+                #current_pose = self.goal
+                #current_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+                '''
+
             else:
-                # Back to the original orientation
-                current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
-            '''
+                rospy.logwarn("No pose data available, skipping step.")
 
-            # Simulate only changes in position
-            if iteration < 200:
-                # Start close to the robot
-                current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
-            elif iteration >= 200 and iteration < 400:
-                # Oriented as the fixed reference
-                current_pose = np.array([0.4, 1.2, 0.47, 0.5, -0.5, -0.5, 0.5])
-            else:
-                current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
-
-            print(f"The current pose in euler angles is: {R.from_quat(current_pose[3:]).as_rotvec()*180/np.pi}")
-            position_tf = current_pose[:3]  # (x, y, z)
-            quaternion_tf = current_pose[3:]  # (qx, qy, qz, qw)
-            br.sendTransform(
-                (position_tf[0], position_tf[1], position_tf[2]),  # Translation
-                (quaternion_tf[0], quaternion_tf[1], quaternion_tf[2], quaternion_tf[3]),  # Quaternion
-                rospy.Time.now(),
-                "proxy_hand",  # New frame (child)
-                "base_link"  # Parent frame
-            )
-            #current_pose = self.goal
-            #current_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-            '''
-            r = R.from_euler('z', 90, degrees=True)
-            q = r.as_quat()
-            current_pose[3:] = q
-
-            if iteration > 35:
-                r1 = R.from_euler('x', -45, degrees=True)
-                new_rot = r1 * r
-                q1 = new_rot.as_quat()
-                angle = new_rot.as_rotvec()
-                print(f"The new angle in degrees is {angle*180/np.pi}")
-                current_pose[3:] = q1
-            '''
-
-            
-            
-            
-            
             # Start timing
-            start_time_step = time.time()
             iteration = iteration + 1
             # y, dy, ddy: pos, vel, acc of dmp_link wrt base_link
             y, dy, ddy, dist_vec = self.step(tau = tau, pose = current_pose, goal = self.goal, **kwargs)
             yield y, dy, ddy
 
         # The while loop is over: saving time!
-        print(f"The vector of distances is: {dist_vec}")
-        print(f"The vector of tau is: {self.tau_vec}")
-        '''
+        #print(f"The vector of distances is: {dist_vec}")
+        #print(f"The vector of tau is: {self.tau_vec}")
+        
         script_dir = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(script_dir, "distance.csv")  # File path in the script's directory
+        file_path = os.path.join(script_dir, "../experiments/experiment6/follow_trajectory.csv")
+
         with open(file_path, mode='w', newline='') as csvfile:
-            csv_writer = csv.writer(csvfile)
-            csv_writer.writerow(self.d_not_filtered_plot)
-            csv_writer.writerow(self.d_filtered_plot)
-            csv_writer.writerow(self.Ct_vec)
-            csv_writer.writerow(self.Cs_vec)
-            csv_writer.writerow(self.vel_vec)
-        '''
+            csv_writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+            # Write each list as a separate row
+            csv_writer.writerow(["X Values"] + self.x_pose_full)
+            csv_writer.writerow(["Y Values"] + self.y_pose_full)
+            csv_writer.writerow(["Z Values"] + self.z_pose_full)
+            csv_writer.writerow(["QX Values"] + self.qx_pose_full)
+            csv_writer.writerow(["QY Values"] + self.qy_pose_full)
+            csv_writer.writerow(["QZ Values"] + self.qz_pose_full)
+            csv_writer.writerow(["QW Values"] + self.qw_pose_full)
+
+        rospy.loginfo(f"Pose data saved correctly to {file_path}")
+
 
     def reset_state(self):
         """Reset the system state"""
@@ -449,14 +467,20 @@ class DMPs(object):
         x = self.cs.step(tau=self.tau_dyn, error_coupling=error_coupling)
         psi = self.gen_psi(x)
         print(f"The value of x is: {x}")
-        #precompute quaternion distance : diference betwwen current orientation and goal orientation
+
+        # Define the needed quaternions
         q1 = self.y[3:]
-        #if the goal orientation is fixed
+        if self.follow_trajectory:
+            print("Following the trajectory")
+            q2 = self.goal[3:]
+        elif self.follow_operator:
+            print("Following the operator")
+            q2 = y_h_star
         #q2 = self.goal[3:]
         #if the goal orientation is changable
-        q2 = pose[3:]
+        #q2 = pose[3:]
         #q2 = y_h_star
-        print(f"The value of q2 in euler angles is: {R.from_quat(y_h_star).as_euler('xyz', degrees=True)}")
+        #print(f"The value of q2 in euler angles is: {R.from_quat(y_h_star).as_euler('xyz', degrees=True)}")
 
         # Convert to euler angles
         #angles = R.from_quat(q2).as_rotvec()
@@ -476,16 +500,19 @@ class DMPs(object):
         #new_goal_rot = cm_rot * goal_rot  # Correct composition (Cm applied first, then goal)
         #q2 = new_goal_rot.as_rotvec()
         #q2 = new_goal_rot.as_quat()
-        distance = compute_quaternion_distance(y_h_star, q1)
+        distance = compute_quaternion_distance(q2, q1)
+        #distance = compute_quaternion_distance(y_h_star, q1)
         print(f"The distance computed with method 1 is: {distance*180/np.pi}")
         print(f"The distnace computed with method 2 is: {compute_quaternion_distance(q2, q1) * 180 / np.pi}")
         for d in range(self.n_dmps):
             # Solve the equations
-            f = (self.gen_front_term(x, d, y_h_star) *
+            #f = (self.gen_front_term(x, d, y_h_star) *
+            #     (np.dot(psi, self.w[d])) / np.sum(psi))
+            f = (self.gen_front_term(x, d, self.goal[3:]) *
                  (np.dot(psi, self.w[d])) / np.sum(psi))
             if d <= 2:
-                print(f"THE VALUE OF THE VELOCITY IS: {self.ay[d] * self.dy[d]/self.tau_dyn}")
-                print(f"THE VALUE OF Cs IS: {Cs[d]}")
+                #print(f"THE VALUE OF THE VELOCITY IS: {self.ay[d] * self.dy[d]/self.tau_dyn}")
+                #print(f"THE VALUE OF Cs IS: {Cs[d]}")
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * (self.goal[d] - self.y[d]) -
                             self.dy[d]/self.tau_dyn) + f  + Cs[d]) * (self.tau_dyn ** 2)
@@ -495,8 +522,8 @@ class DMPs(object):
                 self.y[d] += self.dy[d] * self.dt * error_coupling
             else:
                 # Equations in terms of quaternions (d = 3, 4, 5)
-                print(f"THE VALUE OF THE VELOCITY IS: {self.dy[d]/self.tau_dyn}")
-                print(f"THE VALUE OF Cs IS: {Cs[d]}")
+                #print(f"THE VALUE OF THE VELOCITY IS: {self.dy[d]/self.tau_dyn}")
+                #print(f"THE VALUE OF Cs IS: {Cs[d]}")
                 self.ddy[d] = (self.ay[d] *
                             (self.by[d] * distance[d-3] -
                             self.dy[d]/self.tau_dyn) + f + Cs[d]) * (self.tau_dyn ** 2)
