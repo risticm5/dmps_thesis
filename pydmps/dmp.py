@@ -132,8 +132,8 @@ class DMPs(object):
         self.fake_pose = False # Use fake data
 
         # Robot behaviour
-        self.follow_trajectory = True
-        self.follow_operator = False
+        self.follow_trajectory = False
+        self.follow_operator = True
 
         rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
 
@@ -418,7 +418,7 @@ class DMPs(object):
         #print(f"The vector of tau is: {self.tau_vec}")
         
         script_dir = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(script_dir, "../experiments/experiment6/follow_trajectory.csv")
+        file_path = os.path.join(script_dir, "../experiments/experiment1/random.csv")
 
         with open(file_path, mode='w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)

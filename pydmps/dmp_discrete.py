@@ -236,7 +236,7 @@ class DMPs_discrete(DMPs):
 
         # Initialize Cs
         Cs = np.zeros(6) #n_dmps=6
-        ks = 0.0 # Vary this in between 0 and 1
+        ks = 0.3116 # Vary this in between 0 and 1
         ay = 25.0
         a_d = -10
         delta_d = 0.35 #now this represent mean for distance in rad
@@ -279,7 +279,7 @@ class DMPs_discrete(DMPs):
                 
         # Computation of Cm
         Cm = np.zeros(6)
-        km = 1.00 # The smallest value is 1.0 (no amplification effect)
+        km = 1.333 # The smallest value is 1.0 (no amplification effect)
         by = ay / 4
         a_dm = -10
         delta_dm = 0.35 * np.ones(3) # 0.35 rad = 20 degrees; 0.7 rad = 40 degrees; 10 degrees = 0.17 rad
