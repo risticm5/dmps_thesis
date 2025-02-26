@@ -2,7 +2,7 @@ from scipy.spatial.transform import Rotation as R
 import numpy as np
 
 rx = R.from_euler('x', 90, degrees=True)
-ry = R.from_euler('y', -70, degrees=True)
+ry = R.from_euler('y', -80, degrees=True)
 rz = R.from_euler('z', 0, degrees=True)
 fixed_ref_matrices = rx * ry * rz # Absolute rotation of the fixed frame (as a rotation matrix)
 fixed_ref_eul_ang = fixed_ref_matrices.as_euler('xyz', degrees=True)

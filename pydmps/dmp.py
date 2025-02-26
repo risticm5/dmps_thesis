@@ -128,8 +128,8 @@ class DMPs(object):
         self.qw_pose_full = []
 
         # Variables controlling the pose
-        self.camera_pose = True # Use data from the camera
-        self.fake_pose = False # Use fake data
+        self.camera_pose = False # Use data from the camera
+        self.fake_pose = True # Use fake data
 
         # Robot behaviour
         self.follow_trajectory = False
@@ -334,18 +334,16 @@ class DMPs(object):
 
                 # Fixed rotation
                 br = tf.TransformBroadcaster()
-                if iteration < 400:
+
                     # Oriented as the fixed reference
-                    current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
-                else:
-                    current_pose = np.array([0.4, 0.7, 0.47, 0.57922797, -0.40557979, -0.40557979,  0.57922797])
+                current_pose = np.array([0.4, 0.7, 0.47, 0.54167522, -0.45451948, -0.45451948,  0.54167522])
                 position_tf = current_pose[:3]  # (x, y, z)
                 quaternion_tf = current_pose[3:]  # (qx, qy, qz, qw)
                 br.sendTransform(
                     (position_tf[0], position_tf[1], position_tf[2]),  # Translation
                     (quaternion_tf[0], quaternion_tf[1], quaternion_tf[2], quaternion_tf[3]),  # Quaternion
                     rospy.Time.now(),
-                    "proxy_hand",  # New frame (child)
+                    "hand",  # New frame (child)
                     "base_link"  # Parent frame
                 )
 
