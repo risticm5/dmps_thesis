@@ -23,6 +23,8 @@ file_paths = [
 
 # Initialize list to store summary statistics
 summary_stats = []
+delta_x_values = []
+delta_z_values = []
 
 # Loop through each CSV file
 for idx, path in enumerate(file_paths, start=1):
@@ -35,12 +37,18 @@ for idx, path in enumerate(file_paths, start=1):
 
     # Outlier detection on positions
     position_z_scores = np.abs(zscore(positions))
-    position_mask = (position_z_scores < 3).all(axis=1)
+    position_mask = (position_z_scores < 2.5).all(axis=1)
     filtered_positions = positions[position_mask]
 
     # Compute min and max for x and z (converted to mm)
     x_min, x_max = filtered_positions[:, 0].min(), filtered_positions[:, 0].max()
     z_min, z_max = filtered_positions[:, 2].min(), filtered_positions[:, 2].max()
+
+    # Compute delta_x and delta_z
+    delta_x = x_max - x_min
+    delta_z = z_max - z_min
+    delta_x_values.append(delta_x)
+    delta_z_values.append(delta_z)
 
     # Append summary statistics for this CSV (no theta or standard deviation included)
     summary_stats.append([
@@ -92,3 +100,14 @@ for (i, j), cell in table.get_celld().items():
 
 # Display the plot
 plt.show()
+
+# Save delta_x and delta_z to CSV file
+delta_df = pd.DataFrame({"Delta X (mm)": delta_x_values, "Delta Z (mm)": delta_z_values})
+delta_csv_path = os.path.join(script_dir, "Deltas.csv")
+delta_df.to_csv(delta_csv_path, index=False)
+
+# Display delta_x and delta_z vectors
+print("Delta X values:", delta_x_values)
+print("Delta Z values:", delta_z_values)
+print(f"Deltas saved to: {delta_csv_path}")
+

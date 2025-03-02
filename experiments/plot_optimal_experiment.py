@@ -31,6 +31,8 @@ file_paths = [
 
 # Initialize list to store summary statistics
 summary_stats = []
+delta_x_values = []
+delta_z_values = []
 
 # Loop through each CSV file
 for idx, path in enumerate(file_paths, start=1):
@@ -51,12 +53,18 @@ for idx, path in enumerate(file_paths, start=1):
 
     # Outlier detection on positions
     position_z_scores = np.abs(zscore(positions))
-    position_mask = (position_z_scores < 3).all(axis=1)
+    position_mask = (position_z_scores < 2.5).all(axis=1)
     filtered_positions = positions[position_mask]
 
     # Compute min and max for x and z (converted to mm)
     x_min, x_max = filtered_positions[:, 0].min(), filtered_positions[:, 0].max()
     z_min, z_max = filtered_positions[:, 2].min(), filtered_positions[:, 2].max()
+
+    # Compute delta_x and delta_z
+    delta_x = x_max - x_min
+    delta_z = z_max - z_min
+    delta_x_values.append(delta_x)
+    delta_z_values.append(delta_z)
 
     # Append summary statistics for this CSV (no theta included)
     summary_stats.append([
@@ -64,7 +72,7 @@ for idx, path in enumerate(file_paths, start=1):
         f"{z_min:.2f} - {z_max:.2f}"
     ])
 
-# Prepare headers and summary statistics (removed the theta column)
+# Prepare headers and summary statistics
 headers = [
     r"$\textbf{Test}$",
     r"${x_H}_{\text{min}} - {x_H}_{\text{max}}\ (\text{mm})$",
@@ -76,16 +84,12 @@ table_data = [headers]
 for i, stats in enumerate(summary_stats, start=1):
     table_data.append([f"{i}"] + stats)
 
-# Dynamically adjust figure width based on longest content
-max_content_length = max(len(str(item)) for row in table_data for item in row)
-fig_width = max(12, max_content_length * 0.5)  # Adjust figure width based on content length
-
 # Create the table plot
-fig, ax = plt.subplots(figsize=(fig_width, 8))
+fig, ax = plt.subplots(figsize=(12, 8))
 ax.axis('off')
 
 # Set cell height multiplier
-cell_height = 1.5  # You can adjust this value
+cell_height = 1.5
 
 # Create the table
 table = ax.table(
@@ -97,14 +101,28 @@ table = ax.table(
 # Adjust table aesthetics
 table.auto_set_font_size(False)
 table.set_fontsize(12)
-table.scale(1, cell_height)  # Set custom cell height
-
-# Manually set custom widths for each column
-column_widths = [0.05, 0.15, 0.15]  # Adjust widths as needed
-
-for (i, j), cell in table.get_celld().items():
-    if j < len(column_widths):
-        cell.set_width(column_widths[j])
+table.scale(1, cell_height)
 
 # Display the plot
 plt.show()
+
+# Load imported deltas from Deltas.csv
+deltas_csv_path = os.path.join(script_dir, "Deltas.csv")
+imported_deltas = pd.read_csv(deltas_csv_path)
+imported_x = imported_deltas["Delta X (mm)"].values
+imported_z = imported_deltas["Delta Z (mm)"].values
+
+# Compute relative metric
+relative_metric_x = (imported_x - np.array(delta_x_values)) / imported_x
+relative_metric_z = (imported_z - np.array(delta_z_values)) / imported_z
+
+# Display results
+print("Relative metric for X:", relative_metric_x)
+print("Relative metric for Z:", relative_metric_z)
+
+# Print also the deltas
+print("Delta X values:", delta_x_values)
+print("Delta Z values:", delta_z_values)
+
+
+
