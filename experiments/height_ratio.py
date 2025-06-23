@@ -18,18 +18,13 @@ full_file1_path = os.path.join(script_dir, file1_path)
 full_file2_path = os.path.join(script_dir, file2_path)
 
 # ====== PROCESS static_test.csv ======
-# Load the static test data
 data_static = pd.read_csv(full_file2_path)
-
-# Extract Z values from static_test.csv
 z_values_static = data_static['Z'].to_numpy()
 
 # ====== PROCESS iteration15.csv ======
-# Read iteration15.csv content
 with open(full_file1_path, 'r') as file:
     content1 = file.read()
 
-# Function to extract values from iteration15.csv
 def extract_values(content, start_label, end_label):
     start_idx = content.find(start_label) + len(start_label)
     end_idx = content.find(end_label) if end_label else len(content)
@@ -37,85 +32,106 @@ def extract_values(content, start_label, end_label):
     values = [float(v) for v in values_str.split(',') if v.strip()]
     return np.array(values)
 
-# Extract Z values from iteration15.csv
 z_values_iter = extract_values(content1, 'Z Values', 'QX Values')
 
-# Define the reference heights
+# Height of the participant
+hp = 1.82  # Default height
+if file1_path == "experiment3/iteration15.csv":
+    hp = 1.68
+    lab_cand = 2
+elif file1_path == "experiment4/iteration15.csv":
+    hp = 1.92
+    lab_cand = 3
+elif file1_path == "experiment5/iteration15.csv":
+    hp = 1.92
+    lab_cand = 4
+elif file1_path == "experiment6/iteration15.csv":
+    hp = 1.55
+    lab_cand = 5
+elif file1_path == "experiment7/iteration15.csv":
+    hp = 1.95
+    lab_cand = 6
+else:
+    lab_cand = 1
+
 dT = 0.935  # Table height
-hp = 1.950  # Person height
-delta_H = 0.300  # Height difference between head and shoulder
-hS = hp - delta_H  # Shoulder height
+hS_static = hp - 0.300  # Shoulder height
+hS_iter = hp - 0.300  # Shoulder height
 
-# Adjust all the z values to include the table height
-hG_static = z_values_static + dT
-hG_iter = z_values_iter + dT
+# Adjust Z values
+hG_static = (z_values_static + dT) / hS_static
+hG_iter = (z_values_iter + dT) / hS_iter
 
-# Compute mean and standard deviation
+# Compute statistics
 mean_static = np.mean(hG_static)
 std_dev_static = np.std(hG_static, ddof=1)
-
 mean_iter = np.mean(hG_iter)
 std_dev_iter = np.std(hG_iter, ddof=1)
 
-# Generate Gaussian curves (Normalized)
-z_range_static = np.linspace(mean_static - 4 * std_dev_static, mean_static + 4 * std_dev_static, 300)
-gaussian_static = norm.pdf(z_range_static, mean_static, std_dev_static)
-gaussian_static_scaled = gaussian_static / np.max(gaussian_static) * 0.3  # Reduced height
+# Determine y-axis limits with offsets
+y_min = min(np.min(hG_static), np.min(hG_iter)) - 0.15  # Offset below min
+y_max = max(np.max(hG_static), np.max(hG_iter)) + 0.1  # Offset above max
 
-z_range_iter = np.linspace(mean_iter - 4 * std_dev_iter, mean_iter + 4 * std_dev_iter, 300)
-gaussian_iter = norm.pdf(z_range_iter, mean_iter, std_dev_iter)
-gaussian_iter_scaled = gaussian_iter / np.max(gaussian_iter) * 0.3  # Reduced height
+# Generate Gaussian curves
+z_range = np.linspace(y_min, y_max, 300)
+
+gaussian_static = norm.pdf(z_range, mean_static, std_dev_static)
+gaussian_static_scaled = gaussian_static / np.max(gaussian_static) * 0.3
+
+gaussian_iter = norm.pdf(z_range, mean_iter, std_dev_iter)
+gaussian_iter_scaled = gaussian_iter / np.max(gaussian_iter) * 0.3
 
 # ====== PLOTTING ======
-fig, axs = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
+fig, ax = plt.subplots(figsize=(8, 8))
 
-# ---- Function to plot each subplot ----
-def plot_gaussian(ax, hG_data, mean, std_dev, gaussian_scaled, z_range, color, label):
-    # Scatter plot of the raw data (vertical dots)
-    ax.scatter(np.zeros_like(hG_data), hG_data, label=label, alpha=0.6, color=color)
+# Scatter plot (static at x=0, iter at x=0.4)
+ax.scatter(np.zeros_like(hG_static), hG_static, color='green', alpha=0.6, label=rf"Static: $\mu = {mean_static:.3f}$, $\sigma = {std_dev_static:.3f}$", s=100)
+ax.scatter(np.full_like(hG_iter, 0.4), hG_iter, color='blue', alpha=0.6, label=rf"Opt: $\mu = {mean_iter:.3f}$, $\sigma = {std_dev_iter:.3f}$", s=100)
 
-    # Gaussian curve
-    ax.plot(gaussian_scaled, z_range, color=color, linestyle='solid', label=r"Gaussian Fit")
+# Gaussian curves
+ax.plot(gaussian_static_scaled, z_range, color='green', linestyle='solid')
+ax.plot(0.4 + gaussian_iter_scaled, z_range, color='blue', linestyle='solid')
 
-    # Compute intersection points (where dashed lines should stop)
-    def find_intersection(z_values, gaussian, value):
-        idx = np.argmin(np.abs(z_values - value))  # Find closest index
-        return gaussian[idx]  # Return corresponding gaussian height
+# Dashed lines for mean and std deviation
+# Dashed lines for mean and std deviation
+for mean, std_dev, color, x_pos, gaussian in [(mean_static, std_dev_static, 'green', 0, gaussian_static_scaled),
+                                              (mean_iter, std_dev_iter, 'blue', 0.4, gaussian_iter_scaled)]:
+    # Compute where the Gaussian curve is at the respective height
+        # Compute the Gaussian curve width at the respective height
+    gaussian_end = x_pos + gaussian[np.argmin(np.abs(z_range - mean))]
+    gaussian_end_low = x_pos + gaussian[np.argmin(np.abs(z_range - (mean - std_dev)))]
+    gaussian_end_high = x_pos + gaussian[np.argmin(np.abs(z_range - (mean + std_dev)))]
+    
+    # Draw correct dashed lines from scatter points to the Gaussian
+    ax.hlines(mean, x_pos, gaussian_end, color=color, linestyle='dashed', linewidth=2)
+    ax.hlines(mean - std_dev, x_pos, gaussian_end_low, color=color, linestyle='dashed', linewidth=1, alpha=0.6)
+    ax.hlines(mean + std_dev, x_pos, gaussian_end_high, color=color, linestyle='dashed', linewidth=1, alpha=0.6)
 
-    # Vertical limits
-    ymin, ymax = min(hG_data), max(hG_data)
+    
+    # Fill area under Gaussian and above dataset, limited by std dev lines
+    ax.fill_betweenx(z_range, x_pos, x_pos + gaussian,
+                      where=((z_range >= mean - std_dev) & (z_range <= mean + std_dev)),
+                      color=color, alpha=0.2)
 
-    # Mean line
-    mean_height = find_intersection(z_range, gaussian_scaled, mean)
-    ax.axhline(mean, xmax=mean_height / 0.3, color=color, linestyle='dashed', linewidth=1, label=rf'Mean: {mean:.3f} m')
 
-    # ±1 Standard deviation lines
-    std_low = mean - std_dev
-    std_high = mean + std_dev
+# Shoulder height horizontal dashed line
+ax.axhline(1, xmin=-0.1, xmax=2, color='red', linestyle='dashed', linewidth=2.0, label=r'Shoulder limit')
 
-    std_low_height = find_intersection(z_range, gaussian_scaled, std_low)
-    std_high_height = find_intersection(z_range, gaussian_scaled, std_high)
+# Compute the ratios
+lambda_z = (std_dev_static - std_dev_iter) / std_dev_static
+#extra_label = rf"$\lambda_{{z,{lab_cand}}} = {lambda_z:.3f}$"
+#ax.plot([], [], ' ', label=extra_label)  # Empty plot for legend entry
 
-    ax.axhline(std_low, xmax=std_low_height / 0.3, color=color, linestyle='dashed', linewidth=1, alpha=0.6)
-    ax.axhline(std_high, xmax=std_high_height / 0.3, color=color, linestyle='dashed', linewidth=1, alpha=0.6)
+# Labels and formatting
+ax.set_xlim(-0.1, 0.8)
+ax.set_ylim(y_min, y_max)
+#ax.set_ylabel(rf'$\xi_{{{lab_cand}}} = h_{{G,{lab_cand}}}/h_{{S,{lab_cand}}}$', fontsize=25)
+ax.legend(fontsize=25)
+ax.grid(True)
+#ax.set_title(rf'$\textbf{{Candidate\ {lab_cand}}}$', fontsize=25)
+ax.tick_params(axis='both', which='major', labelsize=25)  # Increase size for major ticks
 
-    # Shoulder height point (Red Circle)
-    ax.scatter(0, hS, color='red', s=60, edgecolors='black', label=rf'Shoulder Height: {hS:.3f} m', zorder=3)
+ax.set_xticklabels([])
 
-    # Fill area inside dashed lines and Gaussian curve
-    ax.fill_betweenx(z_range, 0, gaussian_scaled, where=((z_range >= std_low) & (z_range <= std_high)), color=color, alpha=0.2)
-
-    ax.set_xlabel(r"$x$", fontsize=12)
-    ax.set_title(label, fontsize=14)
-    ax.legend()
-    ax.grid(True)
-
-# ---- First subplot: Static Test ----
-plot_gaussian(axs[0], hG_static, mean_static, std_dev_static, gaussian_static_scaled, z_range_static, 'green', r"\textbf{Static Test}")
-
-# ---- Second subplot: Iteration 15 ----
-plot_gaussian(axs[1], hG_iter, mean_iter, std_dev_iter, gaussian_iter_scaled, z_range_iter, 'blue', r"\textbf{Iteration 15}")
-
-# Adjust layout and show plot
 plt.tight_layout()
 plt.show()

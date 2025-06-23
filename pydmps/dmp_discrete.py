@@ -236,10 +236,10 @@ class DMPs_discrete(DMPs):
 
         # Initialize Cs
         Cs = np.zeros(6) #n_dmps=6
-        ks = 0.3116 # Vary this in between 0 and 1
+        ks = 0.7 # Vary this in between 0 and 1
         ay = 25.0
         a_d = -10
-        delta_d = 0.35 #now this represent mean for distance in rad
+        delta_d = 0.174 # 10 degrees
 
         velocities = dy_r[3:]
 
@@ -279,40 +279,20 @@ class DMPs_discrete(DMPs):
                 
         # Computation of Cm
         Cm = np.zeros(6)
-        km = 3 # The smallest value is 1.0 (no amplification effect)
+        km = 1.0 # The smallest value is 1.0 (no amplification effect)
         by = ay / 4
         a_dm = -10
-        delta_dm = 0.35 * np.ones(3) # 0.35 rad = 20 degrees; 0.7 rad = 40 degrees; 10 degrees = 0.17 rad
-        theta = np.linalg.norm(distance_rotv)
-        #sigma_dm = 1 / (1 + np.exp(a_dm * (theta - delta_dm))) # Value ranging from 0 to 1
-        #print(f"The value of sigma_dm is: {sigma_dm}")
-        #print(f"The amplification factor is: {km * sigma_dm}")
-        #Cm[3:] = ay * by * km * sigma_dm * (distance_rotv / np.linalg.norm(distance_rotv))
-        #Cm[3:] = km * sigma_dm * distance_rotv
-        #Cm[3:] = km * distance_rotv
-        #Cm[4] *= km # Amplify only the y component
-        #print(f"The complete amplification term Cm is: {Cm}")
+        #delta_dm = 0.35 * np.ones(3) # 0.35 rad = 20 degrees; 0.7 rad = 40 degrees; 10 degrees = 0.17 rad
+        delta_dm = 0.7
 
         relative_human_rotvec = relative_human_rotation.as_rotvec()
-        # Sigmoidal
-        sigma_dm = 1 + (km - 1) / (1 + np.exp(-a_dm * (relative_human_rotvec - delta_dm)))
+        theta = np.linalg.norm(relative_human_rotvec)
+
+        sigma_dm = 1 + (km - 1) / (1 + np.exp(-a_dm * (theta - delta_dm)))
         amplified_rotvec = sigma_dm * relative_human_rotvec
-        print(f"The rleative rotations in terms of rotation angles is: {relative_human_rotvec}")
-        print(f"The amplified relative rotations in terms of rotation angles is: {amplified_rotvec}")
-        #print(f"The y component of the relative rotation is: {relative_human_rotvec[1]}")
-        #amplified_rotvec[1] *= km # Amplify the rotation around y-axis
         amplified_human_rotation = R.from_rotvec(amplified_rotvec) # Realtive one
-        #print(f"The amplified relative rotation in terms of euler angles is: {amplified_human_rotation.as_euler('xyz', degrees=True)}")
         amplified_goal_rotation = fixed_ref_matrix * amplified_human_rotation
-        y_h_star = amplified_goal_rotation.as_quat()
-
-        #print(f"THE human rotation in terms of euler angles is: {R.from_quat(y_h_star).as_euler('xyz', degrees=True)}")
-
-
-
-
-        
-    
+        y_h_star = amplified_goal_rotation.as_quat()   
         return Ct, Cs, Cm, y_h_star, self.dist_vec
     
 

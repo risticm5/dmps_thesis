@@ -129,13 +129,35 @@ class DMPs(object):
 
         # Variables controlling the pose
         self.camera_pose = False # Use data from the camera
-        self.fake_pose = True # Use fake data
+        self.fake_pose = True # Use 'fake' data
+        self.import_pose = False # Import data from a file
 
         # Robot behaviour
-        self.follow_trajectory = False
-        self.follow_operator = True
+        self.follow_trajectory = False # Static (stadard) behaviour
+        self.follow_operator = True # Adaptive behaviour
 
         rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
+
+    def extract_values(self, content, start_label, end_label):
+        start_idx = content.find(start_label) + len(start_label)
+        end_idx = content.find(end_label) if end_label else len(content)
+        values_str = content[start_idx:end_idx].strip().replace("\n", "")
+        values = [float(v) for v in values_str.split(',') if v.strip()]
+        return np.array(values)
+    
+    def acquire_pose_file(self, file_path):
+
+        with open(file_path, 'r') as file:
+            content1 = file.read()
+        # Convert to meters
+        x_values = self.extract_values(content1, 'X Values', 'Y Values')  
+        y_values = self.extract_values(content1, 'Y Values', 'Z Values')  
+        z_values = self.extract_values(content1, 'Z Values', 'QX Values')  
+        qx_values = self.extract_values(content1, 'QX Values', 'QY Values')
+        qy_values = self.extract_values(content1, 'QY Values', 'QZ Values')
+        qz_values = self.extract_values(content1, 'QZ Values', 'QW Values')
+        qw_values = self.extract_values(content1, 'QW Values', None)
+        return x_values, y_values, z_values, qx_values, qy_values, qz_values, qw_values
 
     def object_pose_callback(self, msg):
         """
@@ -296,8 +318,16 @@ class DMPs(object):
         # Reset the state 
         self.reset_state_dynamic()
         iteration = 0
-        while np.linalg.norm(y[:3] - self.goal[:3]) > 0.01:
 
+        # If needed, open a file that contains poses
+        if self.import_pose:
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            file1_path = "../experiments/experiment1/follow_teaching.csv"
+            full_file1_path = os.path.join(script_dir, file1_path)
+            x_vec_imported, y_vec_imported, z_vec_imported, qx_vec_imported, qy_vec_imported, qz_vec_imported, qw_vec_imported = self.acquire_pose_file(full_file1_path)
+
+        while np.linalg.norm(y[:3] - self.goal[:3]) > 0.01:
+            
             if self.camera_pose:       
                 if self.aruco_pose is None:
                     rospy.logwarn("Aruco pose is not yet available, skipping step.")
@@ -331,7 +361,8 @@ class DMPs(object):
                     continue
 
             elif self.fake_pose:
-
+                
+                '''
                 # Fixed rotation
                 br = tf.TransformBroadcaster()
 
@@ -346,22 +377,18 @@ class DMPs(object):
                     "hand",  # New frame (child)
                     "base_link"  # Parent frame
                 )
+                '''
 
-                '''                   
+                               
                 # Simulate only changes in orientation
                 br = tf.TransformBroadcaster()
-                if iteration < 200:
+                if iteration < 300:
                     # Oriented as the fixed reference
                     current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
-                elif iteration >= 200 and iteration < 400:
+                elif iteration >= 300:
                     # Rotated 20 degrees around the 'y' axis and 30 around the 'z' axis
-                    current_pose = np.array([0.4, 0.7, 0.47, 0.45451948, -0.54167522, -0.24184476, 0.66446302])  
-                elif iteration >= 400 and iteration < 600: 
-                    # Rotated of -20 around y and 0 around z
-                    current_pose = np.array([0.4, 0.7, 0.47, 0.40557979, -0.57922797, -0.57922797,  0.40557979]) 
-                else:
-                    # Back to the original orientation
-                    current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.29883624, -0.64085638, -0.64085638, 0.29883624])  
+
 
                 #print(f"The current pose in euler angles is: {R.from_quat(current_pose[3:]).as_rotvec()*180/np.pi}")
                 position_tf = current_pose[:3]  # (x, y, z)
@@ -373,7 +400,7 @@ class DMPs(object):
                     "proxy_hand",  # New frame (child)
                     "base_link"  # Parent frame
                 )
-                '''
+                
                 
 
                 '''
@@ -401,19 +428,41 @@ class DMPs(object):
                 #current_pose = self.goal
                 #current_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
                 '''
+            elif self.import_pose: # Import data from a file
+                br = tf.TransformBroadcaster()
 
+                # Take the current position
+                current_pose = np.array([x_vec_imported[iteration], y_vec_imported[iteration], z_vec_imported[iteration], 
+                                         qx_vec_imported[iteration], qy_vec_imported[iteration], qz_vec_imported[iteration], qw_vec_imported[iteration]])
+                position_tf = current_pose[:3]  # (x, y, z)
+                quaternion_tf = current_pose[3:]  # (qx, qy, qz, qw)
+                br.sendTransform(
+                    (position_tf[0], position_tf[1], position_tf[2]),  # Translation
+                    (quaternion_tf[0], quaternion_tf[1], quaternion_tf[2], quaternion_tf[3]),  # Quaternion
+                    rospy.Time.now(),
+                    "hand",  # New frame (child)
+                    "base_link"  # Parent frame
+                )
             else:
                 rospy.logwarn("No pose data available, skipping step.")
 
             # Start timing
             iteration = iteration + 1
+            print(f"The value of the iteration is: {iteration}")
+            print(f"THE ROBOT ORIENTATION IS: {y[3:]}")
             # y, dy, ddy: pos, vel, acc of dmp_link wrt base_link
             y, dy, ddy, dist_vec = self.step(tau = tau, pose = current_pose, goal = self.goal, **kwargs)
+            if iteration == 300:
+                
+                print(f"THE ROBOT ORIENTATION IS: {y[3:]}")
             yield y, dy, ddy
 
         # The while loop is over: saving time!
         #print(f"The vector of distances is: {dist_vec}")
         #print(f"The vector of tau is: {self.tau_vec}")
+
+        #print(f"The value of the iteration is: {iteration}")
+        #print(f"The length of the x_pose_vec imported is: {len(x_vec_imported)}")
         
         script_dir = os.path.dirname(os.path.realpath(__file__))
         file_path = os.path.join(script_dir, "../experiments/experiment1/random.csv")

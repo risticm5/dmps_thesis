@@ -5,11 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Status1
-        - /Grid1
         - /RobotModel1/Links1
-        - /TF1
         - /TF1/Frames1
+        - /Path1
       Splitter Ratio: 0.5
     Tree Height: 746
   - Class: rviz/Selection
@@ -91,6 +89,11 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        dmp_ref:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: false
         flange:
           Alpha: 1
           Show Axes: false
@@ -191,9 +194,9 @@ Visualization Manager:
           Value: false
         bottle_handler:
           Value: false
-        camera_color_optical_frame:
-          Value: false
         dmp_link:
+          Value: true
+        dmp_ref:
           Value: true
         flange:
           Value: false
@@ -205,27 +208,7 @@ Visualization Manager:
           Value: false
         hande_right_finger:
           Value: false
-        oak-d-base-frame:
-          Value: false
-        oak-d_frame:
-          Value: false
-        oak_imu_frame:
-          Value: false
-        oak_left_camera_frame:
-          Value: false
-        oak_left_camera_optical_frame:
-          Value: false
-        oak_model_origin:
-          Value: false
-        oak_rgb_camera_frame:
-          Value: false
-        oak_rgb_camera_optical_frame:
-          Value: false
-        oak_right_camera_frame:
-          Value: false
-        oak_right_camera_optical_frame:
-          Value: false
-        operator_hand:
+        odom:
           Value: true
         semaforo:
           Value: false
@@ -236,8 +219,6 @@ Visualization Manager:
         teleop_link:
           Value: false
         tool0:
-          Value: false
-        tool0_controller:
           Value: false
         upper_arm_link:
           Value: false
@@ -256,31 +237,15 @@ Visualization Manager:
       Name: TF
       Show Arrows: true
       Show Axes: true
-      Show Names: true
+      Show Names: false
       Tree:
-        oak-d-base-frame:
-          oak-d_frame:
-            oak_imu_frame:
-              {}
-            oak_left_camera_frame:
-              oak_left_camera_optical_frame:
-                {}
-            oak_model_origin:
-              {}
-            oak_rgb_camera_frame:
-              oak_rgb_camera_optical_frame:
-                {}
-            oak_right_camera_frame:
-              oak_right_camera_optical_frame:
-                {}
         world:
           semaforo:
             {}
           tabletop:
             base_link:
               base:
-                tool0_controller:
-                  {}
+                {}
               base_link_inertia:
                 shoulder_link:
                   upper_arm_link:
@@ -300,14 +265,38 @@ Visualization Manager:
                               tool0:
                                 dmp_link:
                                   {}
-              camera_color_optical_frame:
-                operator_hand:
+              dmp_ref:
+                odom:
                   {}
               teleop_link:
                 {}
           virtual_wall_1:
             {}
       Update Interval: 0
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 25; 255; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.03999999910593033
+      Line Style: Lines
+      Line Width: 0.029999999329447746
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: Axes
+      Queue Size: 10
+      Radius: 0.0024999999441206455
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic: /learn_dmp_service_node/demonstrated_path
+      Unreliable: false
       Value: true
   Enabled: true
   Global Options:
