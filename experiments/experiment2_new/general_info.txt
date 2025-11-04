@@ -1,0 +1,5 @@
+Candidate: Daniele
+height: 1.97
+role: 'expert' in robotics
+gender: male
+result: success

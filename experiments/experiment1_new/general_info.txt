@@ -1,0 +1,5 @@
+Candidate: Alessandro
+height: 1.75
+role: 'expert' in robotics
+gender: male
+result: success

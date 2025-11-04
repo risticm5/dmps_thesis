@@ -128,8 +128,8 @@ class DMPs(object):
         self.qw_pose_full = []
 
         # Variables controlling the pose
-        self.camera_pose = False # Use data from the camera
-        self.fake_pose = True # Use 'fake' data
+        self.camera_pose = True # Use data from the camera
+        self.fake_pose = False # Use 'fake' data
         self.import_pose = False # Import data from a file
 
         # Robot behaviour
@@ -387,7 +387,9 @@ class DMPs(object):
                     current_pose = np.array([0.4, 0.7, 0.47, 0.5, -0.5, -0.5, 0.5])
                 elif iteration >= 300:
                     # Rotated 20 degrees around the 'y' axis and 30 around the 'z' axis
-                    current_pose = np.array([0.4, 0.7, 0.47, 0.29883624, -0.64085638, -0.64085638, 0.29883624])  
+                    #current_pose = np.array([0.4, 0.7, 0.47, 0.29883624, -0.64085638, -0.64085638, 0.29883624]) # 20 degrees around y
+                    #current_pose = np.array([0.4, 0.7, 0.47, 0.40557979, -0.57922797, -0.40557979, 0.57922797]) # 20 around z
+                    current_pose = np.array([0.4, 0.7, 0.47, 0.1830127, -0.6830127, -0.57922797, 0.40557979]) # 20 around z and y
 
 
                 #print(f"The current pose in euler angles is: {R.from_quat(current_pose[3:]).as_rotvec()*180/np.pi}")
@@ -465,7 +467,7 @@ class DMPs(object):
         #print(f"The length of the x_pose_vec imported is: {len(x_vec_imported)}")
         
         script_dir = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(script_dir, "../experiments/experiment1/random.csv")
+        file_path = os.path.join(script_dir, "../experiments/experiment3_new/iteration15.csv")
 
         with open(file_path, mode='w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)

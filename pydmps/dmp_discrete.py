@@ -236,10 +236,10 @@ class DMPs_discrete(DMPs):
 
         # Initialize Cs
         Cs = np.zeros(6) #n_dmps=6
-        ks = 0.7 # Vary this in between 0 and 1
+        ks = 0.312 # Vary this in between 0 and 1
         ay = 25.0
         a_d = -10
-        delta_d = 0.174 # 10 degrees
+        delta_d = 0.35 # 10 degrees
 
         velocities = dy_r[3:]
 
@@ -279,11 +279,11 @@ class DMPs_discrete(DMPs):
                 
         # Computation of Cm
         Cm = np.zeros(6)
-        km = 1.0 # The smallest value is 1.0 (no amplification effect)
+        km = 1.06887 # The smallest value is 1.0 (no amplification effect)
         by = ay / 4
         a_dm = -10
         #delta_dm = 0.35 * np.ones(3) # 0.35 rad = 20 degrees; 0.7 rad = 40 degrees; 10 degrees = 0.17 rad
-        delta_dm = 0.7
+        delta_dm = 0.35
 
         relative_human_rotvec = relative_human_rotation.as_rotvec()
         theta = np.linalg.norm(relative_human_rotvec)

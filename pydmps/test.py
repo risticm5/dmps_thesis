@@ -41,9 +41,14 @@ rz_h0 = R.from_euler('z', 0, degrees=True)
 R_h0 = rx_h0 * ry_h0 * rz_h0 # Absolute rotation of the fixed frame (as a rotation matrix)
 
 # Human rotated hand (of 20 degrees)
+'''
 rx_h = R.from_euler('x', 90, degrees=True)
 ry_h = R.from_euler('y', -130, degrees=True)
 rz_h = R.from_euler('z', 0, degrees=True)
+'''
+rx_h = R.from_euler('x', 90, degrees=True)
+ry_h = R.from_euler('y', -130, degrees=True)
+rz_h = R.from_euler('z', 20, degrees=True)
 R_h = rx_h * ry_h * rz_h 
 
 # To be used for simulations: pass to quaternions
@@ -51,6 +56,8 @@ q_h0 = R_h0.as_quat()
 q_h = R_h.as_quat()
 print(f"The initial quaternion is: {q_h0}")
 print(f"The final quaternion is: {q_h}")
+
+sfghjfjghthg
 
 # Compute the relative rotation matrix for the human
 R_h_h0 = R_h0.inv() * R_h

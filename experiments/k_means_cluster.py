@@ -12,8 +12,8 @@ mpl.rcParams['font.family'] = 'serif'
 mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 
 # File paths
-file1_path = "experiment1/iteration15.csv"
-file2_path = "experiment1/static_test.csv"
+file1_path = "experiment1_new/iteration15.csv"
+file2_path = "experiment1_new/static_test.csv"
 script_dir = os.path.dirname(os.path.realpath(__file__))
 full_file1_path = os.path.join(script_dir, file1_path)
 full_file2_path = os.path.join(script_dir, file2_path)
@@ -31,6 +31,12 @@ elif file1_path == "experiment6/iteration15.csv":
     lab_cand = 5
 elif file1_path == "experiment7/iteration15.csv":
     lab_cand = 6
+elif file1_path == "experiment1_new/iteration15.csv":
+    lab_cand = 7
+elif file1_path == "experiment2_new/iteration15.csv":
+    lab_cand = 8
+elif file1_path == "experiment3_new/iteration15.csv":
+    lab_cand = 9
 
 scaling_gauss = 1
 

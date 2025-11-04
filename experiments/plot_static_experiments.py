@@ -12,6 +12,7 @@ mpl.rcParams['font.family'] = 'serif'
 mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 
 # List of file paths
+'''
 file_paths = [
     "experiment1/static_test.csv",
     "experiment3/static_test.csv",
@@ -19,6 +20,11 @@ file_paths = [
     "experiment5/static_test.csv",
     "experiment6/static_test.csv",
     "experiment7/static_test.csv"
+]
+'''
+
+file_paths = [
+    "experiment1_new/static_test.csv"
 ]
 
 # Initialize list to store summary statistics
