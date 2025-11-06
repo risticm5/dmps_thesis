@@ -11,8 +11,8 @@ mpl.rcParams['font.family'] = 'serif'
 mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 
 # File paths
-file1_path = "experiment3_new/iteration15.csv"
-file2_path = "experiment3_new/static_test.csv"
+file1_path = "experiment4_new/iteration15.csv"
+file2_path = "experiment4_new/static_test.csv"
 script_dir = os.path.dirname(os.path.realpath(__file__))
 full_file1_path = os.path.join(script_dir, file1_path)
 full_file2_path = os.path.join(script_dir, file2_path)
@@ -35,7 +35,7 @@ def extract_values(content, start_label, end_label):
 z_values_iter = extract_values(content1, 'Z Values', 'QX Values')
 
 # Height of the participant
-hp = 1.82  # Default height
+hp = 1.71  # Default height
 dh_static = 0.3
 dh_opt = 0.3
 if file1_path == "experiment3/iteration15.csv":

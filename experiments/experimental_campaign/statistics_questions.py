@@ -26,7 +26,9 @@ file_paths = [
     "test7_bozidar/answers_test7.csv",
     "test1_new_alessandro/answers_test1_new.csv",
     "test2_new_daniele/answers_test1.csv",
-    "test3_new_eleonora/answers_test1.csv"
+    "test3_new_eleonora/answers_test1.csv",
+    "test4_new_paola/answers_test1.csv",
+    "test5_new_antonio/answers_test1.csv"
 ]
 
 # -----------------------------

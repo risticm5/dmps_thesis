@@ -72,7 +72,7 @@ class ArucoPoseNode:
     def save_to_csv(self):
         """Saves the collected pose data to a CSV file, including timestamps."""
         script_dir = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(script_dir, "experiment3_new/static_test.csv")
+        file_path = os.path.join(script_dir, "experiment4_new/static_test.csv")
 
         with open(file_path, mode='w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile)

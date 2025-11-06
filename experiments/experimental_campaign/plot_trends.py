@@ -21,17 +21,20 @@ file_paths = [
     "test7_bozidar/answers_test7.csv",
     "test1_new_alessandro/answers_test1_new.csv",
     "test2_new_daniele/answers_test1.csv",
-    "test3_new_eleonora/answers_test1.csv"
+    "test3_new_eleonora/answers_test1.csv",
+    "test4_new_paola/answers_test1.csv",
+    "test5_new_antonio/answers_test1.csv"
 ]
 
 # >>> Made-up participant names (same order/length as file_paths)
 participant_names = [
-    "Chris", "Xenia", "Mihailo", "Marko", "Ele1",
-    "Bozidar", "Ale", "Dani", "Ele2"
+    "Chri(1.82)", "Xen(1.68)", "Miha(1.92)", "Mar(1.92)", "Ele1(1.55)",
+    "Bohi(1.95)", "Ale(1.75)", "Dan(1.97)", "Ele2(1.82)", "Pao(1.71)", "Ant(1.74)"
 ]
 
 # Colors
-colors = plt.cm.tab10(np.linspace(0, 1, len(file_paths)))
+cmap = plt.get_cmap('tab20', len(file_paths))
+colors = cmap(range(len(file_paths)))
 
 # Figure & axes
 fig, axes = plt.subplots(1, 4, figsize=(20, 6))
@@ -100,7 +103,7 @@ for idx, file_path in enumerate(file_paths):
 
 # Shared legend
 fig.legend(lines, legend_labels, loc='lower center',
-           ncol=len(file_paths), fontsize=15, frameon=False)
+           ncol=len(file_paths), fontsize=10, frameon=False)
 
 plt.tight_layout(rect=[0, 0.1, 1, 0.95])
 plt.subplots_adjust(bottom=0.2)

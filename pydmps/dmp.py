@@ -467,7 +467,7 @@ class DMPs(object):
         #print(f"The length of the x_pose_vec imported is: {len(x_vec_imported)}")
         
         script_dir = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(script_dir, "../experiments/experiment3_new/iteration15.csv")
+        file_path = os.path.join(script_dir, "../experiments/experiment4_new/iteration15.csv")
 
         with open(file_path, mode='w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)

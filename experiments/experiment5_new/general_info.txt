@@ -1,0 +1,5 @@
+Candidate: Antonio
+height: 1.74
+role: 'non-expert' in robotics
+gender: male
+result: success
