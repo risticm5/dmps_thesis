@@ -1,3 +1,4 @@
-Candidate: Mihailo
-role: 'non-expert' in robotics
+Candidate: Marko
+role: 'expert' in robotics
 gender: male
+result:success

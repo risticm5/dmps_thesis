@@ -1,4 +1,3 @@
-Candidate: Xenia
+Candidate: Mihailo
 role: 'non-expert' in robotics
-gender: female
-result: success
+gender: male

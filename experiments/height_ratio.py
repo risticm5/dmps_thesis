@@ -11,8 +11,8 @@ mpl.rcParams['font.family'] = 'serif'
 mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 
 # File paths
-file1_path = "experiment4_new/iteration15.csv"
-file2_path = "experiment4_new/static_test.csv"
+file1_path = "experiment9/iteration15.csv"
+file2_path = "experiment9/static_test.csv"
 script_dir = os.path.dirname(os.path.realpath(__file__))
 full_file1_path = os.path.join(script_dir, file1_path)
 full_file2_path = os.path.join(script_dir, file2_path)
@@ -35,49 +35,79 @@ def extract_values(content, start_label, end_label):
 z_values_iter = extract_values(content1, 'Z Values', 'QX Values')
 
 # Height of the participant
-hp = 1.71  # Default height
+hp = 1.82  # Default height
 dh_static = 0.3
 dh_opt = 0.3
-if file1_path == "experiment3/iteration15.csv":
+if file1_path == "experiment2/iteration15.csv":
     hp = 1.68
     dh_static = 0.3
     dh_opt = 0.25
     lab_cand = 2
-elif file1_path == "experiment4/iteration15.csv":
+elif file1_path == "experiment3/iteration15.csv":
     hp = 1.92
     dh_static = 0.3
     dh_opt = 0.3
     lab_cand = 3
-elif file1_path == "experiment5/iteration15.csv":
+elif file1_path == "experiment4/iteration15.csv":
     hp = 1.92
     dh_static = 0.3
     dh_opt = 0.3
     lab_cand = 4
-elif file1_path == "experiment6/iteration15.csv":
+elif file1_path == "experiment5/iteration15.csv":
     hp = 1.55
     dh_static = 0.3
     dh_opt = 0.3
     lab_cand = 5
-elif file1_path == "experiment7/iteration15.csv":
+elif file1_path == "experiment6/iteration15.csv":
     hp = 1.95
     dh_static = 0.3
     dh_opt = 0.3
     lab_cand = 6
-elif file1_path == "experiment1_new/iteration15.csv":
-    hp = 1.75
+elif file1_path == "experiment7/iteration15.csv":
+    hp = 1.70
     dh_static = 0.3
     dh_opt = 0.25
     lab_cand = 7
-elif file1_path == "experiment2_new/iteration15.csv":
+elif file1_path == "experiment8/iteration15.csv":
     hp = 1.97
     dh_static = 0.3
     dh_opt = 0.25
     lab_cand = 8
-elif file1_path == "experiment3_new/iteration15.csv":
+elif file1_path == "experiment9/iteration15.csv":
     hp = 1.82
     dh_static = 0.3
     dh_opt = 0.25
     lab_cand = 9
+elif file1_path == "experiment10/iteration15.csv":
+    hp = 1.71
+    dh_static = 0.3
+    dh_opt = 0.3
+    lab_cand = 10
+elif file1_path == "experiment11/iteration15.csv":
+    hp = 1.74
+    dh_static = 0.3
+    dh_opt = 0.3
+    lab_cand = 11
+elif file1_path == "experiment12/iteration15.csv":
+    hp = 1.77
+    dh_static = 0.35
+    dh_opt = 0.3
+    lab_cand = 12
+elif file1_path == "experiment13/iteration15.csv":
+    hp = 1.85
+    dh_static = 0.3
+    dh_opt = 0.3
+    lab_cand = 13
+elif file1_path == "experiment14/iteration15.csv":
+    hp = 1.88
+    dh_static = 0.3
+    dh_opt = 0.3
+    lab_cand = 14
+elif file1_path == "experiment15/iteration15.csv":
+    hp = 1.75
+    dh_static = 0.35
+    dh_opt = 0.26
+    lab_cand = 15
 else:
     lab_cand = 1
 
@@ -146,16 +176,16 @@ ax.axhline(1, xmin=-0.1, xmax=2, color='red', linestyle='dashed', linewidth=2.0,
 
 # Compute the ratios
 lambda_z = (std_dev_static - std_dev_iter) / std_dev_static
-#extra_label = rf"$\lambda_{{z,{lab_cand}}} = {lambda_z:.3f}$"
-#ax.plot([], [], ' ', label=extra_label)  # Empty plot for legend entry
+extra_label = rf"$\lambda_{{z,{lab_cand}}} = {lambda_z:.3f}$"
+ax.plot([], [], ' ', label=extra_label)  # Empty plot for legend entry
 
 # Labels and formatting
 ax.set_xlim(-0.1, 0.8)
 ax.set_ylim(y_min, y_max)
-#ax.set_ylabel(rf'$\xi_{{{lab_cand}}} = h_{{G,{lab_cand}}}/h_{{S,{lab_cand}}}$', fontsize=25)
+ax.set_ylabel(rf'$\xi_{{{lab_cand}}} = h_{{G,{lab_cand}}}/h_{{S,{lab_cand}}}$', fontsize=25)
 ax.legend(fontsize=25)
 ax.grid(True)
-#ax.set_title(rf'$\textbf{{Candidate\ {lab_cand}}}$', fontsize=25)
+ax.set_title(rf'$\textbf{{Participant\ {lab_cand}}}$', fontsize=25)
 ax.tick_params(axis='both', which='major', labelsize=25)  # Increase size for major ticks
 
 ax.set_xticklabels([])

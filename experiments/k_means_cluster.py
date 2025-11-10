@@ -12,14 +12,14 @@ mpl.rcParams['font.family'] = 'serif'
 mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 
 # File paths
-file1_path = "experiment1_new/iteration15.csv"
-file2_path = "experiment1_new/static_test.csv"
+file1_path = "experiment8_new/iteration15.csv"
+file2_path = "experiment8_new/static_test.csv"
 script_dir = os.path.dirname(os.path.realpath(__file__))
 full_file1_path = os.path.join(script_dir, file1_path)
 full_file2_path = os.path.join(script_dir, file2_path)
 
 # Height of the partecipant
-if file1_path == "experiment1/iteration15.csv":
+if file1_path == "experiment8_new/iteration15.csv":
     lab_cand = 1
 elif file1_path == "experiment3/iteration15.csv":
     lab_cand = 2

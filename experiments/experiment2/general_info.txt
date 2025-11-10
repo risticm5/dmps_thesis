@@ -1,6 +1,4 @@
-Candidate: Maria
+Candidate: Xenia
 role: 'non-expert' in robotics
 gender: female
-result: bad
-
-THIS CANNOT BE USED IN THE PAPER
+result: success

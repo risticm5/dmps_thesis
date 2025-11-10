@@ -1,4 +1,4 @@
-Candidate: Marko
+Candidate: Eleonora
 role: 'expert' in robotics
-gender: male
-result:success
+gender: female
+result:

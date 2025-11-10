@@ -1,0 +1,5 @@
+Candidate: Edoardo
+height: 1.88
+role: 'expert' in robotics
+gender: male
+result: success

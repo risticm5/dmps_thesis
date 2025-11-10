@@ -18,17 +18,21 @@ mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 # File paths for participants
 # -----------------------------
 file_paths = [
-    "test1_christian/answers_test1.csv",
-    "test3_xenia/answers_test3.csv",
-    "test4_mihailo/answers_test4.csv",
-    "test5_marko/answers_test5.csv",
-    "test6_eleonora/answers_test6.csv",
-    "test7_bozidar/answers_test7.csv",
-    "test1_new_alessandro/answers_test1_new.csv",
-    "test2_new_daniele/answers_test1.csv",
-    "test3_new_eleonora/answers_test1.csv",
-    "test4_new_paola/answers_test1.csv",
-    "test5_new_antonio/answers_test1.csv"
+    "test1_christian/answers.csv",
+    "test2_xenia/answers.csv",
+    "test3_mihailo/answers.csv",
+    "test4_marko/answers.csv",
+    "test5_eleonora/answers.csv",
+    "test6_bozidar/answers.csv",
+    "test7_alessandro/answers.csv",
+    "test8_daniele/answers.csv",
+    "test9_eleonora/answers.csv",
+    "test10_paola/answers.csv",
+    "test11_antonio/answers.csv",
+    "test12_mario/answers.csv",
+    "test13_marko/answers.csv",
+    "test14_edoardo/answers.csv",
+    "test15_matteo/answers.csv"
 ]
 
 # -----------------------------
@@ -114,7 +118,7 @@ else:
     raise ValueError("BAND must be one of: 'ci', 'sem', 'std'.")
 
 # Intervention window (behind everything)
-plt.axvspan(6, 10, color='lightblue', alpha=0.35, zorder=0)
+#plt.axvspan(6, 10, color='lightblue', alpha=0.35, zorder=0)
 
 # Plot means (in front)
 c1, c2, c3 = '#EA3E70', '#954567', '#0180B5'

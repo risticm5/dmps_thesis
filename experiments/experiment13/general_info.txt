@@ -1,0 +1,5 @@
+Candidate: Marko
+height: 1.85
+role: 'non-expert' in robotics
+gender: male
+result: success
