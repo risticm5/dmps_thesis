@@ -12,31 +12,43 @@ mpl.rcParams['font.family'] = 'serif'
 mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 
 # File paths
-file1_path = "experiment8_new/iteration15.csv"
-file2_path = "experiment8_new/static_test.csv"
+file1_path = "experiment15/iteration15.csv"
+file2_path = "experiment15/static_test.csv"
 script_dir = os.path.dirname(os.path.realpath(__file__))
 full_file1_path = os.path.join(script_dir, file1_path)
 full_file2_path = os.path.join(script_dir, file2_path)
 
 # Height of the partecipant
-if file1_path == "experiment8_new/iteration15.csv":
-    lab_cand = 1
-elif file1_path == "experiment3/iteration15.csv":
+if file1_path == "experiment2/iteration15.csv":
     lab_cand = 2
-elif file1_path == "experiment4/iteration15.csv":
+elif file1_path == "experiment3/iteration15.csv":
     lab_cand = 3
-elif file1_path == "experiment5/iteration15.csv":
+elif file1_path == "experiment4/iteration15.csv":
     lab_cand = 4
-elif file1_path == "experiment6/iteration15.csv":
+elif file1_path == "experiment5/iteration15.csv":
     lab_cand = 5
-elif file1_path == "experiment7/iteration15.csv":
+elif file1_path == "experiment6/iteration15.csv":
     lab_cand = 6
-elif file1_path == "experiment1_new/iteration15.csv":
+elif file1_path == "experiment7/iteration15.csv":
     lab_cand = 7
-elif file1_path == "experiment2_new/iteration15.csv":
+elif file1_path == "experiment8/iteration15.csv":
     lab_cand = 8
-elif file1_path == "experiment3_new/iteration15.csv":
+elif file1_path == "experiment9/iteration15.csv":
     lab_cand = 9
+elif file1_path == "experiment10/iteration15.csv":
+    lab_cand = 10
+elif file1_path == "experiment11/iteration15.csv":
+    lab_cand = 11
+elif file1_path == "experiment12/iteration15.csv":
+    lab_cand = 12
+elif file1_path == "experiment13/iteration15.csv":
+    lab_cand = 13
+elif file1_path == "experiment14/iteration15.csv":
+    lab_cand = 14
+elif file1_path == "experiment15/iteration15.csv":
+    lab_cand = 15
+else:
+    lab_cand = 1
 
 scaling_gauss = 1
 
@@ -129,10 +141,10 @@ axs[0].axvline(mean_static, ymax=y_val / (1.6*scaling_gauss), color='green', lin
 
 # Updated legend with mean and std deviation values
 axs[0].legend(fontsize = 25)
-#axs[0].set_ylabel(rf"\textbf{{Static case}}", fontsize=25)
+axs[0].set_ylabel(rf"\textbf{{Static case}}", fontsize=25)
 axs[0].set_xlim(x_min, x_max)
 axs[0].set_ylim(-0.05, 1.6)  # Adjust based on Gaussian curve height
-#axs[0].set_title(rf"\textbf{{Candidate {lab_cand}}}", fontsize=25)
+axs[0].set_title(rf"\textbf{{Participant {lab_cand}}}", fontsize=25)
 
 axs[0].grid(True)
 
@@ -177,11 +189,11 @@ lambda_x_min = min((std_dev_static - std_dev_cluster_1) / std_dev_static,
                (std_dev_static - std_dev_cluster_2) / std_dev_static)
 
 # Updated legend with mean and std deviation values for clusters
-#extra_label = rf"$\lambda_{{x,{lab_cand},\max}} = {lambda_x_max:.3f}, \quad \lambda_{{x,{lab_cand},\min}} = {lambda_x_min:.3f}$"
-#axs[1].plot([], [], ' ', label=extra_label)  # Empty plot with a label
+extra_label = rf"$\lambda_{{x,{lab_cand},\max}} = {lambda_x_max:.3f}, \quad \lambda_{{x,{lab_cand},\min}} = {lambda_x_min:.3f}$"
+axs[1].plot([], [], ' ', label=extra_label)  # Empty plot with a label
 axs[1].legend(fontsize=25)
-#axs[1].set_xlabel(r"$x_H$ (m)", fontsize=25)
-#axs[1].set_ylabel(rf"\textbf{{Optimal solution}}", fontsize=25)
+axs[1].set_xlabel(r"$x_H$ (m)", fontsize=25)
+axs[1].set_ylabel(rf"\textbf{{Optimal solution}}", fontsize=25)
 axs[1].set_ylim(-0.05, 1.6)  # Adjust based on Gaussian curve height
 axs[1].set_xlim(x_min, x_max)
 axs[1].grid(True)
@@ -190,4 +202,14 @@ axs[0].tick_params(axis='both', which='major', labelsize=30)  # Increase size fo
 axs[1].tick_params(axis='both', which='major', labelsize=30)  # Increase size for major ticks
 
 plt.tight_layout()
+
+# ====== SAVE FIGURE AS SVG ======
+output_dir = os.path.join(script_dir, "Plots")  # Folder where to save SVGs
+os.makedirs(output_dir, exist_ok=True)  # Create folder if it doesn't exist
+
+output_path = os.path.join(output_dir, f"p{lab_cand}_lambdax.svg")
+plt.savefig(output_path, format='svg', dpi=300, bbox_inches='tight')
+
+print(f"✅ Figure saved successfully at: {output_path}")
+
 plt.show()

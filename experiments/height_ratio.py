@@ -11,8 +11,8 @@ mpl.rcParams['font.family'] = 'serif'
 mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 
 # File paths
-file1_path = "experiment9/iteration15.csv"
-file2_path = "experiment9/static_test.csv"
+file1_path = "experiment15/iteration15.csv"
+file2_path = "experiment15/static_test.csv"
 script_dir = os.path.dirname(os.path.realpath(__file__))
 full_file1_path = os.path.join(script_dir, file1_path)
 full_file2_path = os.path.join(script_dir, file2_path)
@@ -191,4 +191,16 @@ ax.tick_params(axis='both', which='major', labelsize=25)  # Increase size for ma
 ax.set_xticklabels([])
 
 plt.tight_layout()
+
+# ====== SAVE FIGURE AS SVG ======
+output_dir = os.path.join(script_dir, "Plots")  # Folder where to save SVGs
+os.makedirs(output_dir, exist_ok=True)  # Create folder if it doesn't exist
+
+output_path = os.path.join(output_dir, f"p{lab_cand}_xiz_height.svg")
+plt.savefig(output_path, format='svg', dpi=300, bbox_inches='tight')
+
+print(f"✅ Figure saved successfully at: {output_path}")
+
 plt.show()
+
+

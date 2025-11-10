@@ -138,6 +138,18 @@ plt.ylabel(ylabel_score, fontsize=20)
 plt.legend(fontsize=15)
 plt.grid(True)
 plt.tight_layout()
+
+# ====== SAVE FIGURE AS SVG (and optionally PNG) ======
+output_dir = os.path.join(script_dir, "../Plots")  # Directory to save plots
+os.makedirs(output_dir, exist_ok=True)  # Create folder if it doesn't exist
+
+# Save as SVG
+output_svg_path = os.path.join(output_dir, "Questions_trend.svg")
+plt.savefig(output_svg_path, format='svg', dpi=300, bbox_inches='tight')
+
+print(f"✅ Figure saved successfully at: {output_svg_path}")
+
+
 plt.show()
 
 
