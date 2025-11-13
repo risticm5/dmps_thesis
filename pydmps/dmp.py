@@ -128,13 +128,13 @@ class DMPs(object):
         self.qw_pose_full = []
 
         # Variables controlling the pose
-        self.camera_pose = True # Use data from the camera
-        self.fake_pose = False # Use 'fake' data
+        self.camera_pose = False # Use data from the camera
+        self.fake_pose = True # Use 'fake' data
         self.import_pose = False # Import data from a file
 
         # Robot behaviour
-        self.follow_trajectory = False # Static (stadard) behaviour
-        self.follow_operator = True # Adaptive behaviour
+        self.follow_trajectory = True # Static (stadard) behaviour
+        self.follow_operator = False # Adaptive behaviour
 
         rospy.Subscriber("/object_pose", ObjectPose, self.object_pose_callback)
 

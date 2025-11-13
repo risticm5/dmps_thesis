@@ -132,7 +132,7 @@ plt.subplots_adjust(bottom=0.2)
 output_dir = os.path.join(script_dir, "../Plots")  # Folder where to save SVGs
 os.makedirs(output_dir, exist_ok=True)  # Create folder if it doesn't exist
 
-output_path = os.path.join(output_dir, f"tau_km_ks_trends.svg")
+output_path = os.path.join(output_dir, f"tau_km\_ks_trends.svg")
 plt.savefig(output_path, format='svg', dpi=300, bbox_inches='tight')
 
 print(f"✅ Figure saved successfully at: {output_path}")

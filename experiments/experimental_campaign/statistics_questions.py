@@ -94,6 +94,7 @@ ylabel_score = r"$\bar{q}_{i,k}=(\sum_{j=1}^N q_{i,k}^j)/N$"
 
 plt.figure(figsize=(10, 5))
 iterations = np.arange(1, q1_matrix.shape[1] + 1)
+print(f"The number of iterations is: {q1_matrix.shape[1]}")
 n = q1_matrix.shape[0]
 
 # Means
