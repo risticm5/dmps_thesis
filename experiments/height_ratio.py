@@ -133,26 +133,26 @@ y_max = max(np.max(hG_static), np.max(hG_iter)) + 0.1  # Offset above max
 z_range = np.linspace(y_min, y_max, 300)
 
 gaussian_static = norm.pdf(z_range, mean_static, std_dev_static)
-gaussian_static_scaled = gaussian_static / np.max(gaussian_static) * 0.3
+gaussian_static_scaled = gaussian_static / np.max(gaussian_static) * 0.1
 
 gaussian_iter = norm.pdf(z_range, mean_iter, std_dev_iter)
-gaussian_iter_scaled = gaussian_iter / np.max(gaussian_iter) * 0.3
+gaussian_iter_scaled = gaussian_iter / np.max(gaussian_iter) * 0.1
 
 # ====== PLOTTING ======
-fig, ax = plt.subplots(figsize=(8, 8))
+fig, ax = plt.subplots(figsize=(3, 8))
 
 # Scatter plot (static at x=0, iter at x=0.4)
-ax.scatter(np.zeros_like(hG_static), hG_static, color='green', alpha=0.6, label=rf"Static: $\mu = {mean_static:.3f}$, $\sigma = {std_dev_static:.3f}$", s=100)
-ax.scatter(np.full_like(hG_iter, 0.4), hG_iter, color='blue', alpha=0.6, label=rf"Opt: $\mu = {mean_iter:.3f}$, $\sigma = {std_dev_iter:.3f}$", s=100)
+ax.scatter(np.zeros_like(hG_static), hG_static, color='green', alpha=0.6, s=100)
+ax.scatter(np.full_like(hG_iter, 0.2), hG_iter, color='blue', alpha=0.6, s=100)
 
 # Gaussian curves
 ax.plot(gaussian_static_scaled, z_range, color='green', linestyle='solid')
-ax.plot(0.4 + gaussian_iter_scaled, z_range, color='blue', linestyle='solid')
+ax.plot(0.2 + gaussian_iter_scaled, z_range, color='blue', linestyle='solid')
 
 # Dashed lines for mean and std deviation
 # Dashed lines for mean and std deviation
 for mean, std_dev, color, x_pos, gaussian in [(mean_static, std_dev_static, 'green', 0, gaussian_static_scaled),
-                                              (mean_iter, std_dev_iter, 'blue', 0.4, gaussian_iter_scaled)]:
+                                              (mean_iter, std_dev_iter, 'blue', 0.2, gaussian_iter_scaled)]:
     # Compute where the Gaussian curve is at the respective height
         # Compute the Gaussian curve width at the respective height
     gaussian_end = x_pos + gaussian[np.argmin(np.abs(z_range - mean))]
@@ -172,7 +172,7 @@ for mean, std_dev, color, x_pos, gaussian in [(mean_static, std_dev_static, 'gre
 
 
 # Shoulder height horizontal dashed line
-ax.axhline(1, xmin=-0.1, xmax=2, color='red', linestyle='dashed', linewidth=2.0, label=r'Shoulder limit')
+ax.axhline(1, xmin=-0.1, xmax=2, color='red', linestyle='dashed', linewidth=2.0)
 
 # Compute the ratios
 lambda_z = (std_dev_static - std_dev_iter) / std_dev_static
@@ -180,12 +180,12 @@ extra_label = rf"$\lambda_{{z,{lab_cand}}} = {lambda_z:.3f}$"
 ax.plot([], [], ' ', label=extra_label)  # Empty plot for legend entry
 
 # Labels and formatting
-ax.set_xlim(-0.1, 0.8)
+ax.set_xlim(-0.05, 0.35)
 ax.set_ylim(y_min, y_max)
-ax.set_ylabel(rf'$\xi_{{{lab_cand}}} = h_{{G,{lab_cand}}}/h_{{S,{lab_cand}}}$', fontsize=25)
-ax.legend(fontsize=25)
+#ax.set_ylabel(rf'$\xi_{{{lab_cand}}} = h_{{G,{lab_cand}}}/h_{{S,{lab_cand}}}$', fontsize=25)
+ax.legend(fontsize=10)
 ax.grid(True)
-ax.set_title(rf'$\textbf{{Participant\ {lab_cand}}}$', fontsize=25)
+ax.set_title(rf'$\textbf{{Participant\ {lab_cand}}}$', fontsize=10)
 ax.tick_params(axis='both', which='major', labelsize=25)  # Increase size for major ticks
 
 ax.set_xticklabels([])
